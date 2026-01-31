@@ -1,0 +1,36 @@
+{
+  "name": "infinite-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "./node_modules/.bin/next dev -p 9003",
+    "build": "./node_modules/.bin/next build",
+    "start": "./node_modules/.bin/next start",
+    "lint": "./node_modules/.bin/eslint"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.93.3",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.29.2",
+    "geist": "^1.5.1",
+    "lodash": "^4.17.23",
+    "lucide-react": "^0.563.0",
+    "next": "^14.2.3",
+    "openai": "^6.17.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/lodash": "^4.17.23",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "^14.2.3",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

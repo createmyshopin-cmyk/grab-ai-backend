@@ -18,6 +18,7 @@ export default function RightSidebar({ selectedBlock, onUpdateBlock }: RightSide
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const handleSendMessage = useCallback(async () => {
         if (!input.trim() || !selectedBlock || isLoading) return;
@@ -60,6 +61,51 @@ export default function RightSidebar({ selectedBlock, onUpdateBlock }: RightSide
         }
     };
 
+    const handleShopifyExport = useCallback(async () => {
+        if (!selectedBlock || isExporting) return;
+
+        setIsExporting(true);
+
+        try {
+            const response = await fetch('/api/export/shopify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    code: selectedBlock.code,
+                    componentName: selectedBlock.name || 'component',
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert(`Export failed: ${data.error}`);
+                return;
+            }
+
+            // Trigger file download
+            const blob = new Blob([data.liquidCode], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename || 'section.liquid';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            // Show success message
+            setMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: `✅ Exported as ${data.filename}! Upload to your theme's sections/ folder.` 
+            }]);
+        } catch (error: any) {
+            alert(`Export failed: ${error.message}`);
+        } finally {
+            setIsExporting(false);
+        }
+    }, [selectedBlock, isExporting]);
+
     return (
         <div className="w-[340px] h-full bg-white border-l border-gray-200 flex flex-col shadow-sm z-50 shrink-0">
             {/* HEADER */}
@@ -73,19 +119,49 @@ export default function RightSidebar({ selectedBlock, onUpdateBlock }: RightSide
             </div>
 
             {/* TABS */}
-            <div className="flex items-center px-4 border-b border-gray-100">
-                {['Chat', 'Code'].map((tab) => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`py-3 mr-6 text-sm font-medium border-b-2 transition-colors ${activeTab === tab
-                            ? 'border-black text-black'
-                            : 'border-transparent text-gray-400 hover:text-gray-600'
-                            }`}
-                    >
-                        {tab}
-                    </button>
-                ))}
+            <div className="flex items-center justify-between px-4 border-b border-gray-100">
+                <div className="flex items-center">
+                    {['Chat', 'Code'].map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`py-3 mr-6 text-sm font-medium border-b-2 transition-colors ${activeTab === tab
+                                ? 'border-black text-black'
+                                : 'border-transparent text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
+                </div>
+                
+                {/* Shopify Export Button */}
+                <button
+                    onClick={handleShopifyExport}
+                    className={`px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1.5 ${
+                        isExporting
+                            ? 'bg-emerald-400 cursor-wait'
+                            : 'bg-emerald-500 hover:bg-emerald-600'
+                    }`}
+                    disabled={!selectedBlock || isExporting}
+                    title="Export component as Shopify Liquid section"
+                >
+                    {isExporting ? (
+                        <>
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Converting...
+                        </>
+                    ) : (
+                        <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Shopify
+                        </>
+                    )}
+                </button>
             </div>
 
             {/* CONTENT AREA */}

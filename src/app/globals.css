@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --tl-font-sans: 'Inter', sans-serif;
 }
 
 @theme inline {

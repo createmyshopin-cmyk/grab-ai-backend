@@ -84,14 +84,22 @@ function generateHtmlPreview(code: string): string {
 function generateReactPreview(code: string): string {
   let processedCode = code.trim();
 
-  // Remove import statements (CDN handles React)
+  // Remove 'use client' directive (not needed in preview)
   processedCode = processedCode
-    .replace(/^import\s+.*?from\s+['"]react['"];?\s*$/gm, '')
-    .replace(/^import\s+.*?from\s+['"]react-dom['"];?\s*$/gm, '')
-    .replace(/^import\s+.*?from\s+['"]framer-motion['"];?\s*$/gm, '')
-    .replace(/^import\s+.*?from\s+['"]react\/jsx-runtime['"];?\s*$/gm, '')
-    .replace(/^import\s+React.*?;?\s*$/gm, '')
+    .replace(/^['"]use client['"];?\s*\n?/gm, '')
     .trim();
+
+  // Remove ALL import statements (CDN handles React)
+  // More aggressive removal to catch all variations
+  processedCode = processedCode
+    .replace(/^import\s+[^;]+;?\s*$/gm, '')
+    .replace(/^import\s+\{[^}]+\}\s+from\s+['"][^'"]+['"];?\s*$/gm, '')
+    .replace(/^import\s+\*\s+as\s+\w+\s+from\s+['"][^'"]+['"];?\s*$/gm, '')
+    .replace(/^import\s+React[^;]*;?\s*$/gm, '')
+    .trim();
+
+  // Clean up any remaining empty lines at the start
+  processedCode = processedCode.replace(/^\s*\n+/, '');
 
   // Handle different export patterns
   // export default function App() {} -> function App() {}
@@ -170,8 +178,16 @@ function generateReactPreview(code: string): string {
 <body>
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
-    // Expose Framer Motion globals
-    const { motion, AnimatePresence } = window.Motion || {};
+    // Make React hooks available globally
+    const { useState, useEffect, useCallback, useMemo, useRef, memo, Fragment, createContext, useContext, useReducer } = React;
+    
+    // Expose Framer Motion globals  
+    const { motion, AnimatePresence } = window.Motion || { motion: {}, AnimatePresence: () => null };
+    
+    // Add motion.div, motion.button, etc. if motion exists
+    if (window.Motion && !motion.div) {
+      Object.assign(motion, window.Motion.motion || {});
+    }
     
     ${processedCode}
     

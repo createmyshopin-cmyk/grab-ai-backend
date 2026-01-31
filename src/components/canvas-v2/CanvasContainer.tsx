@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useRef, memo, useState } from 'react';
 import { useCanvas, detectCodeType } from './useCanvas';
 import CodeBlock from './CodeBlock';
 import RightSidebar from './RightSidebar';
+import ImageUploadModal from './ImageUploadModal';
+import { NotificationContainer } from './Notification';
+import { useNotification } from '@/hooks/useNotification';
 import { throttle } from 'lodash';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -72,6 +75,10 @@ function CanvasContainer() {
     const [activeTool, setActiveTool] = useState('cursor');
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const isPanningState = useRef(false); // Ref for immediate access in handlers
+    
+    // Screenshot upload modal state
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const { notifications, showNotification, removeNotification } = useNotification();
 
     // ============== MARQUEE SELECTION STATE ==============
     const [selectionBox, setSelectionBox] = useState<{
@@ -319,6 +326,37 @@ function CanvasContainer() {
     const handleGlobalClick = useCallback(() => {
         if (contextMenu) setContextMenu(null);
     }, [contextMenu]);
+
+    // Handle code generated from screenshot
+    const handleCodeGenerated = useCallback((data: {
+        code: string;
+        componentName: string;
+        metadata: any;
+    }) => {
+        // Calculate center position on canvas
+        const centerX = -viewport.x + (window.innerWidth / 2 / viewport.zoom) - 300;
+        const centerY = -viewport.y + (window.innerHeight / 2 / viewport.zoom) - 200;
+        
+        // Add block with generated code
+        const newBlockId = addBlock(data.code, { x: centerX, y: centerY });
+        
+        // Update with metadata
+        updateBlock(newBlockId, {
+            name: data.componentName,
+            type: 'react',
+            metadata: data.metadata
+        });
+        
+        // Select and focus the new block
+        setSelectedBlockId(newBlockId);
+        
+        // Show success notification
+        showNotification({
+            title: 'Component Generated!',
+            message: `${data.metadata?.enhancements?.length || 0} enhancements applied`,
+            type: 'success',
+        });
+    }, [viewport, addBlock, updateBlock, setSelectedBlockId, showNotification]);
 
     // Handle Action from context menu
     const handleContextMenuAction = useCallback((action: 'new' | 'delete' | 'duplicate' | 'copy' | 'refresh' | 'rename' | 'export') => {
@@ -716,6 +754,20 @@ function CanvasContainer() {
         };
         window.addEventListener('keydown', handleSpaceDown);
         return () => window.removeEventListener('keydown', handleSpaceDown);
+    }, []);
+
+    // Keyboard shortcut: Cmd/Ctrl + U for screenshot upload
+    useEffect(() => {
+        const handleUploadShortcut = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'u') {
+                e.preventDefault();
+                setIsUploadModalOpen(true);
+            }
+        };
+        window.addEventListener('keydown', handleUploadShortcut);
+        return () => {
+            window.removeEventListener('keydown', handleUploadShortcut);
+        };
     }, []);
 
     // ============== PASTE LISTENER ==============
@@ -1129,6 +1181,28 @@ function CanvasContainer() {
                     />
                 </div>
             </div>
+
+            {/* Screenshot Upload Modal */}
+            <ImageUploadModal
+                isOpen={isUploadModalOpen}
+                onClose={() => setIsUploadModalOpen(false)}
+                onCodeGenerated={handleCodeGenerated}
+            />
+
+            {/* Floating Action Button for Screenshot Upload */}
+            <button
+                onClick={() => setIsUploadModalOpen(true)}
+                className="fixed bottom-6 right-6 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 active:scale-95 transition-all z-50 flex items-center justify-center"
+                title="Upload Screenshot (Cmd/Ctrl + U)"
+                aria-label="Upload screenshot to generate component"
+            >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </button>
+
+            {/* Notification Container */}
+            <NotificationContainer notifications={notifications} onRemove={removeNotification} />
         </div>
     );
 }

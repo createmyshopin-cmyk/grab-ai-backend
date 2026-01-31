@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { Block } from './types';
+import ComponentInfo from './ComponentInfo';
 
 interface RightSidebarProps {
     selectedBlock: Block | null;
@@ -121,7 +122,7 @@ export default function RightSidebar({ selectedBlock, onUpdateBlock }: RightSide
             {/* TABS */}
             <div className="flex items-center justify-between px-4 border-b border-gray-100">
                 <div className="flex items-center">
-                    {['Chat', 'Code'].map((tab) => (
+                    {['Chat', 'Code', ...(selectedBlock?.metadata ? ['Info'] : [])].map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -238,6 +239,10 @@ export default function RightSidebar({ selectedBlock, onUpdateBlock }: RightSide
                     <pre className="flex-1 bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-auto font-mono">
                         {selectedBlock.code}
                     </pre>
+                )}
+
+                {activeTab === 'Info' && selectedBlock && (
+                    <ComponentInfo block={selectedBlock} />
                 )}
             </div>
 

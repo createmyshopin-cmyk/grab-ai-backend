@@ -25,10 +25,11 @@ export function useNotification() {
             setNotifications((prev) => [...prev, newNotification]);
 
             // Auto-dismiss after duration
-            if (newNotification.duration > 0) {
+            const duration = newNotification.duration ?? 5000;
+            if (duration > 0) {
                 setTimeout(() => {
                     removeNotification(id);
-                }, newNotification.duration);
+                }, duration);
             }
 
             return id;

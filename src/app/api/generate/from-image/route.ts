@@ -302,7 +302,7 @@ import { motion } from 'framer-motion';
 The JSON contains ${jsonSpec.elements.length} elements. Create each one in order:
 ${jsonSpec.elements.slice(0, 5).map((el, i) => {
     const content = el.content ? 
-        (el.content.text || el.content.title || el.content.placeholder || JSON.stringify(el.content).substring(0, 50)) : 
+        (el.content.text || el.content.placeholder || el.content.alt || JSON.stringify(el.content).substring(0, 50)) : 
         'No content';
     return `
 ${i + 1}. ${el.type}: "${content}"

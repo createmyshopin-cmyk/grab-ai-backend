@@ -745,19 +745,18 @@ function CanvasContainer() {
                         
                         // Add each component to canvas
                         data.components.forEach((component: any, index: number) => {
-                            const codeType = detectCodeType(component.code);
-                            
                             // Position components in a cascade pattern
                             const offsetX = 100 + (index * 50);
                             const offsetY = 100 + (index * 50);
                             
-                            addBlock({
-                                type: codeType,
-                                code: component.code,
-                                x: offsetX,
-                                y: offsetY,
+                            // Add block and then update with additional properties
+                            const blockId = addBlock(component.code, { x: offsetX, y: offsetY });
+                            
+                            // Update with custom dimensions and metadata
+                            updateBlock(blockId, {
                                 width: 600,
                                 height: 400,
+                                name: component.componentName || `Component ${index + 1}`,
                                 metadata: {
                                     generatedFrom: 'extension-capture',
                                     componentName: component.componentName,
@@ -767,6 +766,7 @@ function CanvasContainer() {
                             
                             showNotification({
                                 type: 'success',
+                                title: 'Component Added',
                                 message: `✅ ${component.componentName} added from extension!`,
                                 duration: 4000
                             });

@@ -358,6 +358,56 @@ function CanvasContainer() {
         });
     }, [viewport, addBlock, updateBlock, setSelectedBlockId, showNotification]);
 
+    // Manual paste button handler with fallback
+    const handleManualPaste = useCallback(async () => {
+        try {
+            // Try to read from clipboard
+            const text = await navigator.clipboard.readText();
+            
+            if (!text || text.trim().length === 0) {
+                showNotification({
+                    title: 'Clipboard Empty',
+                    message: 'Copy code from Chrome extension first!',
+                    type: 'error',
+                });
+                return;
+            }
+
+            // Trigger the existing paste handler by creating a synthetic paste event
+            const fakeEvent = {
+                clipboardData: {
+                    getData: (type: string) => type === 'text' ? text : ''
+                }
+            } as ClipboardEvent;
+            
+            handlePaste(fakeEvent);
+            
+            showNotification({
+                title: 'Code Pasted!',
+                message: 'Component added to canvas',
+                type: 'success',
+            });
+            
+        } catch (error: any) {
+            console.error('Manual paste error:', error);
+            
+            // If clipboard permission denied, show helpful message
+            if (error.name === 'NotAllowedError' || error.message?.includes('permission')) {
+                showNotification({
+                    title: 'Use Ctrl+V Instead',
+                    message: 'Click canvas and press Ctrl+V (or Cmd+V) to paste',
+                    type: 'info',
+                });
+            } else {
+                showNotification({
+                    title: 'Just Press Ctrl+V',
+                    message: 'Use keyboard shortcut: Ctrl+V (Cmd+V on Mac)',
+                    type: 'info',
+                });
+            }
+        }
+    }, [handlePaste, showNotification]);
+
     // Handle Action from context menu
     const handleContextMenuAction = useCallback((action: 'new' | 'delete' | 'duplicate' | 'copy' | 'refresh' | 'rename' | 'export') => {
         if (!contextMenu) return;
@@ -679,6 +729,77 @@ function CanvasContainer() {
         window.addEventListener('mouseup', handleGlobalMouseUp);
         return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
     }, []);
+
+    // ============== EXTENSION INTEGRATION - Poll for new components ==============
+    useEffect(() => {
+        let pollInterval: NodeJS.Timeout;
+        
+        const pollForComponents = async () => {
+            try {
+                const response = await fetch('/api/capture/from-extension?action=poll');
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.components && data.components.length > 0) {
+                        console.log(`📥 Received ${data.components.length} component(s) from extension`);
+                        
+                        // Add each component to canvas
+                        data.components.forEach((component: any, index: number) => {
+                            const codeType = detectCodeType(component.code);
+                            
+                            // Position components in a cascade pattern
+                            const offsetX = 100 + (index * 50);
+                            const offsetY = 100 + (index * 50);
+                            
+                            addBlock({
+                                type: codeType,
+                                code: component.code,
+                                x: offsetX,
+                                y: offsetY,
+                                width: 600,
+                                height: 400,
+                                metadata: {
+                                    generatedFrom: 'extension-capture',
+                                    componentName: component.componentName,
+                                    ...component.metadata
+                                }
+                            });
+                            
+                            showNotification({
+                                type: 'success',
+                                message: `✅ ${component.componentName} added from extension!`,
+                                duration: 4000
+                            });
+                        });
+                    }
+                }
+            } catch (error) {
+                // Silently fail - extension might not be active
+                console.log('Extension polling skipped (app may be offline)');
+            }
+        };
+        
+        // Poll every 2 seconds when tab is active
+        if (document.visibilityState === 'visible') {
+            pollInterval = setInterval(pollForComponents, 2000);
+        }
+        
+        // Handle visibility changes
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                pollInterval = setInterval(pollForComponents, 2000);
+            } else {
+                clearInterval(pollInterval);
+            }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            clearInterval(pollInterval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [addBlock, showNotification]);
 
     // ============== KEYBOARD SHORTCUTS ==============
     useEffect(() => {
@@ -1182,24 +1303,45 @@ function CanvasContainer() {
                 </div>
             </div>
 
-            {/* Screenshot Upload Modal */}
-            <ImageUploadModal
-                isOpen={isUploadModalOpen}
-                onClose={() => setIsUploadModalOpen(false)}
-                onCodeGenerated={handleCodeGenerated}
-            />
+                {/* Screenshot Upload Modal */}
+                <ImageUploadModal
+                    isOpen={isUploadModalOpen}
+                    onClose={() => setIsUploadModalOpen(false)}
+                    onCodeGenerated={handleCodeGenerated}
+                />
 
-            {/* Floating Action Button for Screenshot Upload */}
-            <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="fixed bottom-6 right-6 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 active:scale-95 transition-all z-50 flex items-center justify-center"
-                title="Upload Screenshot (Cmd/Ctrl + U)"
-                aria-label="Upload screenshot to generate component"
-            >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-            </button>
+                {/* Floating Action Buttons */}
+                <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+                    {/* Paste from Clipboard Button */}
+                    <button
+                        onClick={handleManualPaste}
+                        className="w-14 h-14 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center group relative"
+                        title="Paste Code (or just press Ctrl+V)"
+                        aria-label="Paste code from clipboard"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span className="absolute right-16 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            💡 Just press Ctrl+V!
+                        </span>
+                    </button>
+                    
+                    {/* Screenshot Upload Button */}
+                    <button
+                        onClick={() => setIsUploadModalOpen(true)}
+                        className="w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 active:scale-95 transition-all flex items-center justify-center group relative"
+                        title="Upload Screenshot (Cmd/Ctrl + U)"
+                        aria-label="Upload screenshot to generate component"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="absolute right-16 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            Screenshot (Ctrl+U)
+                        </span>
+                    </button>
+                </div>
 
             {/* Notification Container */}
             <NotificationContainer notifications={notifications} onRemove={removeNotification} />

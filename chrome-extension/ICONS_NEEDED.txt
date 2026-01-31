@@ -1,0 +1,68 @@
+🚨 ICONS REQUIRED TO LOAD EXTENSION!
+
+Chrome needs 3 icon files in the icons/ folder:
+- icon-16.png
+- icon-48.png
+- icon-128.png
+
+===========================================
+QUICK FIX (2 minutes):
+===========================================
+
+METHOD 1: Use the HTML Generator (EASIEST!)
+-------------------------------------------
+1. Open this file in Chrome:
+   C:\APP DEV\grab-ai-backend-main\chrome-extension\create-icons.html
+
+2. Click each "Download" button (3 buttons)
+
+3. Move the 3 downloaded PNG files to:
+   C:\APP DEV\grab-ai-backend-main\chrome-extension\icons\
+
+4. Done! Load the extension.
+
+
+METHOD 2: Online Icon Generator
+-------------------------------------------
+1. Go to: https://icon.kitchen/
+
+2. Choose "Emoji" tab
+
+3. Search: 🎯 (target emoji)
+
+4. Click "Download"
+
+5. Extract ZIP and copy these files to icons/ folder:
+   - icon-16.png
+   - icon-48.png
+   - icon-128.png
+
+
+METHOD 3: Manual Creation (Paint/Photoshop)
+-------------------------------------------
+Create 3 blue square images:
+- 16x16 pixels → save as icon-16.png
+- 48x48 pixels → save as icon-48.png
+- 128x128 pixels → save as icon-128.png
+
+Save them to:
+C:\APP DEV\grab-ai-backend-main\chrome-extension\icons\
+
+
+===========================================
+THEN LOAD EXTENSION:
+===========================================
+
+1. Open Chrome → chrome://extensions/
+
+2. Enable "Developer mode" (top-right toggle)
+
+3. Click "Load unpacked"
+
+4. Select folder: C:\APP DEV\grab-ai-backend-main\chrome-extension
+
+5. ✅ Extension loaded!
+
+===========================================
+
+Need help? The create-icons.html method takes 1 minute!

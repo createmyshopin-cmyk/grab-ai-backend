@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Extension Icons</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #3B82F6;
+      margin-bottom: 20px;
+    }
+    canvas {
+      border: 1px solid #ddd;
+      margin: 10px;
+      cursor: pointer;
+    }
+    .instructions {
+      background: #EFF6FF;
+      padding: 15px;
+      border-left: 4px solid #3B82F6;
+      margin: 20px 0;
+    }
+    button {
+      background: #3B82F6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #2563EB;
+    }
+    .success {
+      color: #10B981;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 Generate Extension Icons</h1>
+    
+    <div class="instructions">
+      <strong>Instructions:</strong><br>
+      1. Click each "Download" button below<br>
+      2. Save the 3 PNG files to: <code>chrome-extension/icons/</code><br>
+      3. Then load the extension in Chrome
+    </div>
+
+    <h3>Icon 16x16</h3>
+    <canvas id="icon16" width="16" height="16"></canvas>
+    <button onclick="downloadIcon(16)">Download icon-16.png</button>
+
+    <h3>Icon 48x48</h3>
+    <canvas id="icon48" width="48" height="48"></canvas>
+    <button onclick="downloadIcon(48)">Download icon-48.png</button>
+
+    <h3>Icon 128x128</h3>
+    <canvas id="icon128" width="128" height="128"></canvas>
+    <button onclick="downloadIcon(128)">Download icon-128.png</button>
+
+    <div id="message" class="success"></div>
+
+    <div class="instructions" style="margin-top: 30px;">
+      <strong>After downloading:</strong><br>
+      1. Move all 3 files to: <code>C:\APP DEV\grab-ai-backend-main\chrome-extension\icons\</code><br>
+      2. Go to Chrome: <code>chrome://extensions/</code><br>
+      3. Enable "Developer mode"<br>
+      4. Click "Load unpacked"<br>
+      5. Select: <code>C:\APP DEV\grab-ai-backend-main\chrome-extension</code><br>
+      6. ✅ Extension loaded!
+    </div>
+  </div>
+
+  <script>
+    // Create icons with blue gradient and target symbol
+    function createIcon(size) {
+      const canvas = document.getElementById(`icon${size}`);
+      const ctx = canvas.getContext('2d');
+      
+      // Blue gradient background
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#3B82F6');
+      gradient.addColorStop(1, '#1E40AF');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+      
+      // Target/crosshair symbol
+      ctx.strokeStyle = 'white';
+      ctx.fillStyle = 'white';
+      ctx.lineWidth = Math.max(1, size / 16);
+      
+      const center = size / 2;
+      const radius1 = size * 0.35;
+      const radius2 = size * 0.2;
+      const radius3 = size * 0.08;
+      
+      // Outer circle
+      ctx.beginPath();
+      ctx.arc(center, center, radius1, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Middle circle
+      ctx.beginPath();
+      ctx.arc(center, center, radius2, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Inner filled circle
+      ctx.beginPath();
+      ctx.arc(center, center, radius3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Crosshairs
+      const crossLength = size * 0.15;
+      ctx.beginPath();
+      ctx.moveTo(center, center - radius1 - crossLength);
+      ctx.lineTo(center, center - radius1);
+      ctx.moveTo(center, center + radius1);
+      ctx.lineTo(center, center + radius1 + crossLength);
+      ctx.moveTo(center - radius1 - crossLength, center);
+      ctx.lineTo(center - radius1, center);
+      ctx.moveTo(center + radius1, center);
+      ctx.lineTo(center + radius1 + crossLength, center);
+      ctx.stroke();
+    }
+
+    // Generate all icons on load
+    createIcon(16);
+    createIcon(48);
+    createIcon(128);
+
+    // Download function
+    function downloadIcon(size) {
+      const canvas = document.getElementById(`icon${size}`);
+      const link = document.createElement('a');
+      link.download = `icon-${size}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      document.getElementById('message').textContent = `✅ icon-${size}.png downloaded!`;
+      setTimeout(() => {
+        document.getElementById('message').textContent = '';
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="16" height="16" fill="url(#grad)"/>
+  
+  <!-- Target circles -->
+  <circle cx="8" cy="8" r="5.6" fill="none" stroke="white" stroke-width="1"/>
+  <circle cx="8" cy="8" r="3.2" fill="none" stroke="white" stroke-width="1"/>
+  <circle cx="8" cy="8" r="1.28" fill="white"/>
+  
+  <!-- Crosshairs -->
+  <line x1="8" y1="4.440892098500626e-16" x2="8" y2="2.4000000000000004" stroke="white" stroke-width="1"/>
+  <line x1="8" y1="13.6" x2="8" y2="16" stroke="white" stroke-width="1"/>
+  <line x1="4.440892098500626e-16" y1="8" x2="2.4000000000000004" y2="8" stroke="white" stroke-width="1"/>
+  <line x1="13.6" y1="8" x2="16" y2="8" stroke="white" stroke-width="1"/>
+</svg>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test React Conversion - Grab AI Extension</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #F9FAFB;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #1F2937;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      color: #6B7280;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    
+    button {
+      background: #3B82F6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    
+    button:hover {
+      background: #2563EB;
+    }
+    
+    button.secondary {
+      background: #10B981;
+    }
+    
+    button.secondary:hover {
+      background: #059669;
+    }
+    
+    button.danger {
+      background: #EF4444;
+    }
+    
+    button.danger:hover {
+      background: #DC2626;
+    }
+    
+    .output {
+      background: #1F2937;
+      color: #10B981;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 16px;
+    }
+    
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    
+    .status.success {
+      background: #D1FAE5;
+      color: #065F46;
+      border: 1px solid #10B981;
+    }
+    
+    .status.error {
+      background: #FEE2E2;
+      color: #991B1B;
+      border: 1px solid #EF4444;
+    }
+    
+    .status.info {
+      background: #DBEAFE;
+      color: #1E40AF;
+      border: 1px solid #3B82F6;
+    }
+    
+    .test-section {
+      margin-top: 24px;
+    }
+    
+    .step {
+      background: #F3F4F6;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 4px solid #3B82F6;
+    }
+    
+    .step-title {
+      font-weight: 600;
+      color: #1F2937;
+      margin-bottom: 4px;
+    }
+    
+    .step-desc {
+      color: #6B7280;
+      font-size: 13px;
+    }
+    
+    code {
+      background: #F3F4F6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🧪 Grab AI Extension - Conversion Test</h1>
+    <p class="subtitle">Test if the React conversion logic is working correctly</p>
+    
+    <div class="test-section">
+      <h3>Step 1: Check Extension Status</h3>
+      <button onclick="checkExtensionLoaded()">Check if Extension is Loaded</button>
+      <button onclick="openExtensionConsole()" class="secondary">Open Background Console</button>
+      <div id="status1"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>Step 2: Check Storage</h3>
+      <button onclick="checkStorage()">Check Chrome Storage</button>
+      <button onclick="clearStorage()" class="danger">Clear All Captures</button>
+      <div id="status2"></div>
+      <div id="output2" class="output" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>Step 3: Test Conversion Manually</h3>
+      <button onclick="testConversion()">Run Conversion Test</button>
+      <p style="font-size: 13px; color: #6B7280; margin-top: 8px;">
+        This will test the React conversion logic with sample data
+      </p>
+      <div id="status3"></div>
+      <div id="output3" class="output" style="display: none;"></div>
+    </div>
+    
+    <div class="test-section">
+      <h3>Step 4: View Latest Capture</h3>
+      <button onclick="viewLatestCapture()">Show Latest Capture Code</button>
+      <button onclick="copyLatestCode()" class="secondary">Copy Latest Code</button>
+      <div id="status4"></div>
+      <div id="output4" class="output" style="display: none;"></div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>📝 Instructions</h3>
+    
+    <div class="step">
+      <div class="step-title">Before Testing:</div>
+      <div class="step-desc">
+        1. Make sure the Grab AI extension is loaded in <code>chrome://extensions/</code><br>
+        2. Capture at least one element from any website<br>
+        3. Come back to this page and run the tests
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title">How to Capture:</div>
+      <div class="step-desc">
+        1. Go to any website (like example.com)<br>
+        2. Click Grab AI extension icon<br>
+        3. Click "Start Capture"<br>
+        4. Hover and click any element<br>
+        5. Wait for "Capture Complete!" notification
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title">Debugging:</div>
+      <div class="step-desc">
+        1. Click "Open Background Console" button above<br>
+        2. Capture an element on another website<br>
+        3. Check console for "Element captured:" message<br>
+        4. Come back here and click "Check Chrome Storage"<br>
+        5. If storage has data, conversion is working!
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showStatus(id, type, message) {
+      const statusDiv = document.getElementById(id);
+      statusDiv.className = 'status ' + type;
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+    }
+    
+    function showOutput(id, content) {
+      const outputDiv = document.getElementById(id);
+      outputDiv.textContent = content;
+      outputDiv.style.display = 'block';
+    }
+    
+    function hideOutput(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+    
+    // Step 1: Check extension
+    function checkExtensionLoaded() {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        showStatus('status1', 'success', '✅ Extension API is accessible! Extension is loaded.');
+      } else {
+        showStatus('status1', 'error', '❌ Chrome Extension API not found. Extension not loaded?');
+      }
+    }
+    
+    function openExtensionConsole() {
+      showStatus('status1', 'info', '📌 Go to chrome://extensions/ → Find "Grab AI" → Click "service worker" to open console');
+    }
+    
+    // Step 2: Check storage
+    async function checkStorage() {
+      try {
+        const result = await chrome.storage.local.get('captures');
+        const captures = result.captures || [];
+        
+        if (captures.length === 0) {
+          showStatus('status2', 'info', '📭 No captures found in storage. Capture an element first!');
+          hideOutput('output2');
+        } else {
+          showStatus('status2', 'success', `✅ Found ${captures.length} capture(s) in storage!`);
+          
+          // Show summary
+          const summary = captures.map((cap, idx) => {
+            return `Capture ${idx + 1}:
+  Component: ${cap.component.componentName}
+  From: ${cap.data.pageUrl}
+  Tag: <${cap.data.tagName}>
+  Has Code: ${cap.component.code ? 'YES ✓' : 'NO ✗'}
+  Code Length: ${cap.component.code?.length || 0} characters
+  Timestamp: ${cap.timestamp}
+---`;
+          }).join('\n\n');
+          
+          showOutput('output2', summary);
+        }
+      } catch (error) {
+        showStatus('status2', 'error', '❌ Error accessing storage: ' + error.message);
+        hideOutput('output2');
+      }
+    }
+    
+    async function clearStorage() {
+      if (!confirm('Are you sure you want to delete all captures?')) {
+        return;
+      }
+      
+      try {
+        await chrome.storage.local.remove('captures');
+        showStatus('status2', 'success', '✅ All captures cleared!');
+        hideOutput('output2');
+      } catch (error) {
+        showStatus('status2', 'error', '❌ Error clearing storage: ' + error.message);
+      }
+    }
+    
+    // Step 3: Test conversion
+    async function testConversion() {
+      showStatus('status3', 'info', '🔄 Testing conversion logic...');
+      
+      try {
+        // Create test data similar to what content.js captures
+        const testData = {
+          tagName: 'div',
+          className: 'test-container',
+          id: 'test-element',
+          layout: {
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '16px',
+            margin: '8px',
+            gap: '12px',
+            width: '300px',
+            height: 'auto'
+          },
+          typography: {
+            fontSize: '16px',
+            fontWeight: '500',
+            textAlign: 'center',
+            fontFamily: 'Arial, sans-serif'
+          },
+          colors: {
+            color: 'rgb(31, 41, 55)',
+            backgroundColor: 'rgb(255, 255, 255)',
+            colorHex: '#1F2937',
+            backgroundColorHex: '#FFFFFF'
+          },
+          styles: {
+            'border-radius': '8px',
+            'box-shadow': '0 1px 3px rgba(0,0,0,0.1)'
+          },
+          animations: {
+            transition: 'all 0.3s ease'
+          },
+          textContent: {
+            allText: 'Test Component',
+            headings: [{ level: 'h2', text: 'Test Heading' }]
+          },
+          images: [],
+          responsive: {
+            currentViewport: { width: 1920, height: 1080 }
+          },
+          dimensions: { width: 300, height: 200 },
+          pageUrl: 'https://example.com/test',
+          timestamp: new Date().toISOString()
+        };
+        
+        // Send message to background script to test conversion
+        chrome.runtime.sendMessage({
+          action: 'testConversion',
+          data: testData
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            showStatus('status3', 'error', '❌ Failed to communicate with background script: ' + chrome.runtime.lastError.message);
+            showOutput('output3', 'Make sure to:\n1. Open background console (chrome://extensions/ → service worker)\n2. Look for any errors there\n3. Try capturing a real element instead');
+          } else {
+            showStatus('status3', 'success', '✅ Test conversion completed! Check background console for details.');
+            showOutput('output3', 'The background script should have logged the conversion result.\n\nTo see it:\n1. Go to chrome://extensions/\n2. Find "Grab AI"\n3. Click "service worker"\n4. Look for conversion test output');
+          }
+        });
+        
+      } catch (error) {
+        showStatus('status3', 'error', '❌ Test failed: ' + error.message);
+        showOutput('output3', error.stack);
+      }
+    }
+    
+    // Step 4: View latest
+    async function viewLatestCapture() {
+      try {
+        const result = await chrome.storage.local.get('captures');
+        const captures = result.captures || [];
+        
+        if (captures.length === 0) {
+          showStatus('status4', 'error', '❌ No captures found. Capture an element first!');
+          hideOutput('output4');
+          return;
+        }
+        
+        const latest = captures[0];
+        
+        if (!latest.component || !latest.component.code) {
+          showStatus('status4', 'error', '❌ Latest capture has no React code! Conversion failed.');
+          showOutput('output4', 'Raw capture data:\n' + JSON.stringify(latest, null, 2));
+          return;
+        }
+        
+        showStatus('status4', 'success', `✅ Latest capture: ${latest.component.componentName}`);
+        showOutput('output4', latest.component.code);
+        
+      } catch (error) {
+        showStatus('status4', 'error', '❌ Error: ' + error.message);
+        hideOutput('output4');
+      }
+    }
+    
+    async function copyLatestCode() {
+      try {
+        const result = await chrome.storage.local.get('captures');
+        const captures = result.captures || [];
+        
+        if (captures.length === 0) {
+          showStatus('status4', 'error', '❌ No captures found!');
+          return;
+        }
+        
+        const latest = captures[0];
+        
+        if (!latest.component || !latest.component.code) {
+          showStatus('status4', 'error', '❌ No React code to copy!');
+          return;
+        }
+        
+        await navigator.clipboard.writeText(latest.component.code);
+        showStatus('status4', 'success', '✅ React code copied! Paste it anywhere (Ctrl+V)');
+        
+      } catch (error) {
+        showStatus('status4', 'error', '❌ Copy failed: ' + error.message);
+      }
+    }
+    
+    // Auto-check on load
+    window.addEventListener('load', () => {
+      checkExtensionLoaded();
+    });
+  </script>
+</body>
+</html>

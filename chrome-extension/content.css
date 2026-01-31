@@ -1,0 +1,23 @@
+/**
+ * Grab AI - Content Styles
+ * Injected into every webpage
+ */
+
+/* Prevent selection of Grab AI UI elements */
+#grab-ai-overlay,
+#grab-ai-notification {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Hide scrollbar for horizontal scroll containers when captured */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

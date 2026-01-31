@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grab AI - Website to React</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 350px;
+      min-height: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #1F2937;
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+      color: white;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 12px;
+      background: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .button {
+      width: 100%;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .button-primary {
+      background: #3B82F6;
+      color: white;
+    }
+
+    .button-primary:hover {
+      background: #2563EB;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .button-primary:active {
+      transform: translateY(0);
+    }
+
+    .button-secondary {
+      background: #F3F4F6;
+      color: #4B5563;
+    }
+
+    .button-secondary:hover {
+      background: #E5E7EB;
+    }
+
+    .status {
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .status.active {
+      display: block;
+      background: #DBEAFE;
+      color: #1E40AF;
+      border: 1px solid #3B82F6;
+    }
+
+    .status.success {
+      display: block;
+      background: #D1FAE5;
+      color: #065F46;
+      border: 1px solid #10B981;
+    }
+
+    .status.error {
+      display: block;
+      background: #FEE2E2;
+      color: #991B1B;
+      border: 1px solid #EF4444;
+    }
+
+    .features {
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.6;
+    }
+
+    .features ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .features li {
+      padding: 6px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .features li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #10B981;
+      font-weight: bold;
+    }
+
+    .footer {
+      text-align: center;
+      color: white;
+      font-size: 11px;
+      opacity: 0.8;
+      margin-top: 16px;
+    }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .recent-captures {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+
+    .capture-item {
+      padding: 8px;
+      border-radius: 6px;
+      background: #F9FAFB;
+      margin-bottom: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .capture-item:hover {
+      background: #F3F4F6;
+    }
+
+    .capture-item-title {
+      font-weight: 600;
+      color: #1F2937;
+      margin-bottom: 2px;
+    }
+
+    .capture-item-url {
+      color: #6B7280;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🎯</div>
+      <h1>Grab AI</h1>
+      <div class="subtitle">Website to React Component</div>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="card">
+      <button id="captureBtn" class="button button-primary">
+        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+        </svg>
+        Start Capture
+      </button>
+      
+      <div class="features">
+        <ul>
+          <li>Click to select any element</li>
+          <li>Captures all CSS properties</li>
+          <li>Generates React component</li>
+          <li>Click capture to copy code</li>
+          <li>Paste into your project</li>
+          <li>Press ESC to cancel</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size: 14px; margin-bottom: 12px; color: #374151;">Recent Captures</h3>
+      <div id="recentCaptures" class="recent-captures">
+        <div style="text-align: center; color: #9CA3AF; font-size: 12px; padding: 20px;">
+          No captures yet
+        </div>
+      </div>
+      <div style="margin-top: 12px; font-size: 11px; color: #6B7280; text-align: center;">
+        💡 Click any capture to copy React code to clipboard
+      </div>
+    </div>
+
+    <div class="footer">
+      Made with ❤️ for Grab AI
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

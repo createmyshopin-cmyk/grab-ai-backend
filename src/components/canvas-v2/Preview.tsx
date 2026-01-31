@@ -67,6 +67,7 @@ function generateHtmlPreview(code: string): string {
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow-x: hidden; }
     body { font-family: system-ui, -apple-system, sans-serif; -ms-overflow-style: none; scrollbar-width: none; }
     ::-webkit-scrollbar { display: none; }
   </style>
@@ -142,9 +143,10 @@ function generateReactPreview(code: string): string {
   <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js" onerror="handleScriptError(event)"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; -ms-overflow-style: none; scrollbar-width: none; }
+    html, body { width: 100%; height: 100%; overflow-x: hidden; }
+    body { font-family: system-ui, -apple-system, sans-serif; -ms-overflow-style: none; scrollbar-width: none; }
     ::-webkit-scrollbar { display: none; }
-    #root { min-height: 100vh; }
+    #root { width: 100%; height: 100%; }
     .error-display {
       padding: 1rem;
       background: #fee2e2;
@@ -204,8 +206,10 @@ function generateVanillaPreview(code: string): string {
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow-x: hidden; }
     body { font-family: system-ui, -apple-system, sans-serif; -ms-overflow-style: none; scrollbar-width: none; }
     ::-webkit-scrollbar { display: none; }
+    #app { width: 100%; height: 100%; }
   </style>
 </head>
 <body>

@@ -15,10 +15,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Instruction is required' }, { status: 400 });
         }
 
-        const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-        const prompt = `### ROLE 
-You are a Principal Product Designer & Lead Front-end Architect with 15+ years of experience. Your design philosophy balances Swiss minimalism (grid-based) with modern high-fidelity execution (Apple/Linear aesthetic). 
+        const prompt = `### ROLE & METHODOLOGY
+You are an elite Frontend Architect using the "Code-Build-Refine" methodology.
+1. ANALYZE: Understand the user's intent and the existing code structure.
+2. BUILD: Apply changes using best-in-class React/Tailwind patterns.
+3. REFINE: Self-correct for accessibility, performance, and visual polish (Swiss Minimalism).
 
 ### THE COLOR SYSTEM (Tokens) 
 Always apply colors using a semantic hierarchy. Do not use hardcoded hex values; use these tokens via Tailwind classes: 
@@ -32,9 +35,21 @@ Always apply colors using a semantic hierarchy. Do not use hardcoded hex values;
 ### ADVANCED UI/UX CONSTRAINTS 
 - 15-Year Rule: Prioritize information architecture and user flow over "decoration." 
 - Optical Balance: Use 0.5px strokes for borders in dark mode.
-- Micro-Interactions: Use Framer Motion for 'spring' physics (stiffness: 400, damping: 30) if new interactions are added. 
+- **Intelligent Animation**: Automatically add Framer Motion animations (entry: fade-in/slide-up, interaction: hover scale/tap) to enhance delight. Use spring physics (stiffness: 400, damping: 30).
 - Accessibility (2026 Std): Ensure APCA contrast compliance. 
 - Vertical Rhythm: Strictly follow an 8pt grid system.
+
+### RESPONSIVENESS & FLUIDITY
+- **Mobile-First**: Build for mobile (default), then scale up using \`md:\`, \`lg:\` prefixes.
+- **Fluid Container**: The component MUST fill its parent container (\`w-full h-full\` or \`min-h-screen\` if applicable) to support resizing.
+- **Adaptive Layouts**: Use Flexbox/Grid to handle variable widths (Mobile: 402px, Tablet: 1133px, Desktop: 1440px) gracefully without horizontal scroll.
+- **No Fixed Widths**: AVOID hardcoded widths like \`w-[600px]\`. Use \`w-full\`, \`max-w-*\`, or percentages to ensure elements fit strictly within the device bounds provided.
+
+### STRUCTURE & INTERACTIVITY
+- **Atomic Structure**: Avoid monolithic layouts. Use distinct HTML elements (\`div\`, \`button\`, \`input\`) for every logical part of the UI.
+- **JavaScript Logic**: Implement FULL functional logic for UI patterns like Carousels, Sliders, Accordions, and Tabs using \`useState\` and \`useEffect\`.
+- **Clickable & Interactive**: All actionable elements must have \`cursor-pointer\`, \`hover:\`, and \`active:\` states. Buttons must have \`onClick\` handlers (even if mock).
+- **Separation of Concerns**: Ensure deeply nested layouts use proper Flexbox/Grid wrappers (\`div\`) to maintain responsiveness.
 
 ### TASK
 Modify the React component below based on the user's request, adhering STRICTLY to the design system above.

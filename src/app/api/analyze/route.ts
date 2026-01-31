@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Code is required' }, { status: 400 });
         }
 
-        const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
         const prompt = `### ROLE
 You are a Principal Product Designer & Lead Front-end Architect. Analyze the code below based on a strict "Swiss Minimalism meets Apple Aesthetic" philosophy.

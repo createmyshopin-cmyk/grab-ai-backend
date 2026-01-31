@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Block, Viewport, CanvasState, Point } from './types';
 
 // Generate unique IDs
@@ -40,6 +40,56 @@ export function useCanvas() {
     const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
     const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
 
+    // History State
+    const [history, setHistory] = useState<Block[][]>([[]]);
+    const [historyIndex, setHistoryIndex] = useState(0);
+
+    // Helper to save history
+    const saveSnapshot = useCallback(() => {
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyIndex + 1);
+            // Only push if different from last state?
+            // Simple check to avoid duplicates on clicks
+            // Note: blocks is a dependency, so it's the current state
+            // However, this callback captures 'blocks' from render scope?
+            // No, we need to access the LATEST blocks. 
+            // We can't access state inside setState easily unless we pass it.
+            // So we rely on the component calling this with the new state, or we depend on 'blocks'.
+            return newHistory;
+        });
+    }, [historyIndex]); // We need to fix this pattern.
+
+    // Robust History Commit
+    // Call this AFTER updating blocks state
+    const commitHistory = useCallback((newBlocks: Block[]) => {
+        setHistory(prev => {
+            const currentHistory = prev.slice(0, historyIndex + 1);
+            // Basic equality check to prevent dupes (optional but good)
+            if (currentHistory.length > 0 && JSON.stringify(currentHistory[currentHistory.length - 1]) === JSON.stringify(newBlocks)) {
+                return currentHistory;
+            }
+            return [...currentHistory, newBlocks];
+        });
+        setHistoryIndex(prev => prev + 1);
+    }, [historyIndex]);
+
+    const undo = useCallback(() => {
+        if (historyIndex > 0) {
+            const newIndex = historyIndex - 1;
+            setBlocks(history[newIndex]);
+            setHistoryIndex(newIndex);
+        }
+    }, [history, historyIndex]);
+
+    const redo = useCallback(() => {
+        if (historyIndex < history.length - 1) {
+            const newIndex = historyIndex + 1;
+            setBlocks(history[newIndex]);
+            setHistoryIndex(newIndex);
+        }
+    }, [history, historyIndex]);
+
+
     // Ref for tracking drag state
     const dragRef = useRef<{
         isPanning: boolean;
@@ -62,29 +112,34 @@ export function useCanvas() {
             type,
             name: `Component ${blocks.length + 1}`,
         };
-        setBlocks(prev => [...prev, newBlock]);
+        
+        const newBlocks = [...blocks, newBlock];
+        setBlocks(newBlocks);
         setSelectedBlockId(newBlock.id);
+        commitHistory(newBlocks);
         return newBlock.id;
-    }, [blocks.length]); // creating dependency on length
+    }, [blocks, commitHistory]);
 
     // Duplicate a block
     const duplicateBlock = useCallback((id: string) => {
-        setBlocks(prev => {
-            const blockToDuplicate = prev.find(b => b.id === id);
-            if (!blockToDuplicate) return prev; // Should not happen
+        const blockToDuplicate = blocks.find(b => b.id === id);
+        if (!blockToDuplicate) return;
 
-            const newBlock: Block = {
-                ...blockToDuplicate,
-                id: generateId(),
-                name: `${blockToDuplicate.name} (Copy)`,
-                x: blockToDuplicate.x, // Start at same position (will stay behind while original drags)
-                y: blockToDuplicate.y
-            };
-            return [...prev, newBlock];
-        });
-    }, []);
+        const newBlock: Block = {
+            ...blockToDuplicate,
+            id: generateId(),
+            name: `${blockToDuplicate.name} (Copy)`,
+            x: blockToDuplicate.x, 
+            y: blockToDuplicate.y
+        };
+        const newBlocks = [...blocks, newBlock];
+        setBlocks(newBlocks);
+        commitHistory(newBlocks);
+    }, [blocks, commitHistory]);
 
     // Update a block
+    // Note: We do NOT commit history here to avoid spam during drag.
+    // Consumer must call 'saveSnapshot' (commitHistory) on drag end.
     const updateBlock = useCallback((id: string, updates: Partial<Block>) => {
         setBlocks(prev => prev.map(block =>
             block.id === id ? { ...block, ...updates } : block
@@ -93,11 +148,13 @@ export function useCanvas() {
 
     // Remove a block
     const removeBlock = useCallback((id: string) => {
-        setBlocks(prev => prev.filter(block => block.id !== id));
+        const newBlocks = blocks.filter(block => block.id !== id);
+        setBlocks(newBlocks);
         if (selectedBlockId === id) {
             setSelectedBlockId(null);
         }
-    }, [selectedBlockId]);
+        commitHistory(newBlocks);
+    }, [blocks, selectedBlockId, commitHistory]);
 
     // Pan viewport
     const startPan = useCallback((clientX: number, clientY: number) => {
@@ -152,6 +209,9 @@ export function useCanvas() {
     const loadState = useCallback((state: CanvasState) => {
         setBlocks(state.blocks);
         setViewport(state.viewport);
+        // Reset history on load? Or set initial?
+        setHistory([state.blocks]);
+        setHistoryIndex(0);
     }, []);
 
     // Screen to canvas coordinates
@@ -181,5 +241,9 @@ export function useCanvas() {
         loadState,
         screenToCanvas,
         isPanning: () => dragRef.current.isPanning,
+        // History
+        undo,
+        redo,
+        commitHistory,
     };
 }

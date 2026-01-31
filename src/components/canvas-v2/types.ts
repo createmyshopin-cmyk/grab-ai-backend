@@ -12,6 +12,7 @@ export interface Block {
     suggestedKeywords?: string[]; // AI-detected keywords for refinement
     metadata?: {
         generatedFrom?: 'screenshot' | 'text' | 'paste';
+        jsonSpec?: any; // ComponentSpec from @/types/componentSpec
         elements?: Array<{
             type: string;
             position: { x: number; y: number };

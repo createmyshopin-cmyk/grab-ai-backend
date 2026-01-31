@@ -361,6 +361,16 @@ function CanvasContainer() {
     // Manual paste button handler with fallback
     const handleManualPaste = useCallback(async () => {
         try {
+            // Check if clipboard API is available
+            if (!navigator.clipboard || !navigator.clipboard.readText) {
+                showNotification({
+                    title: 'Use Ctrl+V Instead',
+                    message: 'Click canvas and press Ctrl+V (or Cmd+V) to paste',
+                    type: 'info',
+                });
+                return;
+            }
+
             // Try to read from clipboard
             const text = await navigator.clipboard.readText();
             
@@ -429,9 +439,13 @@ function CanvasContainer() {
         if (action === 'copy' && blockId) {
             const block = blocks.find(b => b.id === blockId);
             if (block && block.code) {
-                navigator.clipboard.writeText(block.code)
-                    .then(() => console.log('Clipboard copy success'))
-                    .catch(e => console.error('Clipboard failed', e));
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(block.code)
+                        .then(() => console.log('Clipboard copy success'))
+                        .catch(e => console.error('Clipboard failed', e));
+                } else {
+                    console.warn('Clipboard API not available');
+                }
             }
             setContextMenu(null);
             return;

@@ -145,17 +145,157 @@ function CodeBlock({
 
     const [isInteractive, setIsInteractive] = useState(false);
     const [showDeviceMenu, setShowDeviceMenu] = useState(false);
+    const [isAutoFit, setIsAutoFit] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
 
     const deviceOptions = [
-        { name: 'Mobile', width: 402, height: 874, icon: 'mobile' },
-        { name: 'Tablet', width: 1133, height: 744, icon: 'tablet' },
-        { name: 'Browser', width: 1440, height: 1024, icon: 'browser' },
+        { name: 'Mobile', width: 402, height: 874, icon: '📱', iconType: 'mobile' },
+        { name: 'Tablet', width: 1133, height: 744, icon: '📱', iconType: 'tablet' },
+        { name: 'Browser', width: 1440, height: 1024, icon: '🖥️', iconType: 'browser' },
     ];
 
     const handleDeviceSelect = (width: number, height: number) => {
         onUpdate({ width, height });
         setShowDeviceMenu(false);
     };
+
+    // Get current device info based on dimensions
+    const getCurrentDevice = () => {
+        const match = deviceOptions.find(
+            d => d.width === block.width && d.height === block.height
+        );
+        return match || { name: 'Custom', icon: '📐', iconType: 'custom' };
+    };
+
+    // Format display name with dimensions
+    const getDisplayName = () => {
+        const device = getCurrentDevice();
+        return `${device.icon} ${device.name} (${block.width}×${block.height})`;
+    };
+
+    // Parse dimensions from text input
+    const handleNameChange = (value: string) => {
+        // Try to extract dimensions like "1440×1024" or "1440 × 1024" or "1440x1024"
+        const dimensionMatch = value.match(/(\d+)\s*[×x]\s*(\d+)/);
+        
+        if (dimensionMatch) {
+            const newWidth = parseInt(dimensionMatch[1]);
+            const newHeight = parseInt(dimensionMatch[2]);
+            
+            // Validate dimensions (minimum 200x150, maximum 4000x4000)
+            if (newWidth >= 200 && newWidth <= 4000 && newHeight >= 150 && newHeight <= 4000) {
+                onUpdate({ 
+                    width: newWidth, 
+                    height: newHeight 
+                });
+            }
+        }
+        
+        // Also update the name if user typed a custom label
+        // Extract just the name part (before dimensions)
+        const nameMatch = value.match(/^([^(]+)/);
+        if (nameMatch) {
+            const customName = nameMatch[1].trim();
+            if (customName && customName !== getDisplayName()) {
+                onUpdate({ name: customName });
+            }
+        }
+    };
+
+    // Auto-fit: Measure iframe content and adjust dimensions
+    const handleAutoFit = useCallback(() => {
+        if (!contentRef.current) return;
+
+        const iframe = contentRef.current.querySelector('iframe') as HTMLIFrameElement;
+        if (!iframe) return;
+
+        // Function to attempt measurement
+        const measureContent = () => {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) {
+                    console.warn('Auto-fit: Cannot access iframe document');
+                    return;
+                }
+
+                // Get the actual rendered content size
+                const body = iframeDoc.body;
+                const html = iframeDoc.documentElement;
+
+                if (!body || !html) {
+                    console.warn('Auto-fit: Body or HTML not ready');
+                    return;
+                }
+
+                // Force reflow to get accurate measurements
+                body.offsetHeight;
+
+                const contentWidth = Math.max(
+                    body.scrollWidth,
+                    body.offsetWidth,
+                    html.clientWidth,
+                    html.scrollWidth,
+                    html.offsetWidth
+                );
+
+                const contentHeight = Math.max(
+                    body.scrollHeight,
+                    body.offsetHeight,
+                    html.clientHeight,
+                    html.scrollHeight,
+                    html.offsetHeight
+                );
+
+                console.log('📐 Auto-fit measured:', { contentWidth, contentHeight });
+
+                // Add some padding and enforce limits
+                const newWidth = Math.max(400, Math.min(3500, contentWidth + 40));
+                const newHeight = Math.max(250, Math.min(2500, contentHeight + 40));
+
+                // Only update if significantly different (avoid tiny fluctuations)
+                if (Math.abs(newWidth - block.width) > 10 || Math.abs(newHeight - block.height) > 10) {
+                    console.log('✅ Auto-fit updating:', { newWidth, newHeight });
+                    onUpdate({
+                        width: newWidth,
+                        height: newHeight
+                    });
+                } else {
+                    console.log('⏭️ Auto-fit skipped (no significant change)');
+                }
+            } catch (e) {
+                console.warn('Auto-fit: Cannot access iframe content (CORS):', e);
+            }
+        };
+
+        // Try multiple times with increasing delays to catch content as it loads
+        setTimeout(measureContent, 100);
+        setTimeout(measureContent, 500);
+        setTimeout(measureContent, 1000);
+        setTimeout(measureContent, 2000);
+    }, [onUpdate, block.width, block.height]);
+
+    // Toggle auto-fit
+    const toggleAutoFit = useCallback(() => {
+        const newAutoFit = !isAutoFit;
+        setIsAutoFit(newAutoFit);
+        
+        // Always trigger auto-fit when clicking (whether turning on or off, it's useful to measure)
+        setTimeout(() => {
+            handleAutoFit();
+        }, 100);
+    }, [isAutoFit, handleAutoFit]);
+
+    // Monitor content changes and auto-fit when enabled
+    React.useEffect(() => {
+        if (isAutoFit) {
+            console.log('🔄 Auto-fit enabled, measuring content...');
+            const timer = setTimeout(() => {
+                handleAutoFit();
+            }, 800); // Debounce to avoid excessive updates
+
+            return () => clearTimeout(timer);
+        }
+    }, [isAutoFit, block.code, handleAutoFit]);
 
     // Calculate inverse scale to keep UI elements constant size relative to screen
     const inverseZoom = 1 / zoom;
@@ -227,12 +367,32 @@ function CodeBlock({
                             className={`flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors`}
                             onClick={(e) => { e.stopPropagation(); setShowDeviceMenu(!showDeviceMenu); }}
                             onMouseDown={(e) => e.stopPropagation()}
-                            title="Device Size"
+                            title="Change Device Size"
                         >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
-                                <path d="M12 18h.01" />
-                            </svg>
+                            {getCurrentDevice().iconType === 'mobile' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+                                    <path d="M12 18h.01" />
+                                </svg>
+                            )}
+                            {getCurrentDevice().iconType === 'tablet' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+                                    <path d="M12 18h.01" />
+                                </svg>
+                            )}
+                            {getCurrentDevice().iconType === 'browser' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                                    <line x1="3" y1="9" x2="21" y2="9" />
+                                </svg>
+                            )}
+                            {getCurrentDevice().iconType === 'custom' && (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                                </svg>
+                            )}
                         </button>
 
                         {/* Dropdown Menu - Positioned below */}
@@ -250,17 +410,7 @@ function CodeBlock({
                                         onClick={() => handleDeviceSelect(device.width, device.height)}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 group-hover:text-gray-600">
-                                                {device.icon === 'mobile' && (
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>
-                                                )}
-                                                {device.icon === 'tablet' && (
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>
-                                                )}
-                                                {device.icon === 'browser' && (
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /></svg>
-                                                )}
-                                            </span>
+                                            <span className="text-base">{device.icon}</span>
                                             <span className="text-sm font-medium text-gray-700">{device.name}</span>
                                         </div>
                                         <span className="text-xs text-gray-400 font-mono">{device.width} × {device.height}</span>
@@ -273,11 +423,21 @@ function CodeBlock({
                     {/* COMPONENT NAME INPUT */}
                     <input
                         type="text"
-                        value={block.name || 'Component'}
-                        onChange={(e) => onUpdate({ name: e.target.value })}
+                        value={getDisplayName()}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        onBlur={(e) => handleNameChange(e.target.value)}
                         className="bg-transparent text-[13px] font-bold text-gray-800 w-40 px-1 focus:outline-none focus:bg-gray-50 focus:ring-1 focus:ring-blue-500 rounded transition-colors"
                         onMouseDown={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                            e.stopPropagation();
+                            // Apply changes on Enter
+                            if (e.key === 'Enter') {
+                                handleNameChange(e.currentTarget.value);
+                                e.currentTarget.blur();
+                            }
+                        }}
+                        placeholder="Device (width×height)"
+                        title="Click to edit device name and dimensions"
                     />
 
                     {/* SEPARATOR */}
@@ -285,16 +445,18 @@ function CodeBlock({
 
                     {/* ACTION GROUP */}
                     <div className="flex items-center gap-3">
-                        {/* Flow / Connect (Placeholder) */}
+                        {/* Auto Fit Toggle */}
                         <button
-                            className="text-gray-400 hover:text-gray-600 transition-colors"
-                            title="Connect Flow"
+                            className={`transition-colors ${isAutoFit ? 'text-green-500' : 'text-gray-400 hover:text-gray-600'}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleAutoFit();
+                            }}
                             onMouseDown={(e) => e.stopPropagation()}
+                            title={isAutoFit ? "Auto-fit: ON (fits content)" : "Auto-fit: OFF (click to fit content)"}
                         >
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect width="6" height="6" x="14" y="3" rx="1" />
-                                <rect width="6" height="6" x="4" y="15" rx="1" />
-                                <path d="M14 6h-2a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2H6" />
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
                             </svg>
                         </button>
 
@@ -371,6 +533,22 @@ function CodeBlock({
                 </div>
             )}
 
+            {/* ================= AUTO-FIT INDICATOR ================= */}
+            {isSelected && isAutoFit && !isResizing && (
+                <div
+                    className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm z-30 pointer-events-none flex items-center gap-1 animate-pulse"
+                    style={{
+                        transform: `scale(${inverseZoom}) translate(-50%, 0)`,
+                        transformOrigin: 'top center'
+                    }}
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                    </svg>
+                    <span>Auto-fit: {Math.round(block.width)} × {Math.round(block.height)}</span>
+                </div>
+            )}
+
             {/* ================= MAIN CONTENT ================= */}
             <div className={`w-full h-full relative group ${!isInteractive ? 'pointer-events-none' : ''}`}>
 
@@ -440,7 +618,7 @@ function CodeBlock({
                 )}
 
                 {/* Content Container (Clip content) */}
-                <div className="w-full h-full bg-white overflow-hidden relative">
+                <div ref={contentRef} className="w-full h-full bg-white overflow-hidden relative">
                     {/* If not selected, show a subtle hover border maybe? */}
                     <div className="absolute inset-0 pointer-events-none border border-gray-100/50" />
 
@@ -449,6 +627,21 @@ function CodeBlock({
                         type={block.type}
                         width={block.width}
                         height={block.height}
+                        onContentResize={isAutoFit ? (width, height) => {
+                            console.log('📨 Received content size:', { width, height });
+                            
+                            // Add padding and enforce limits
+                            const newWidth = Math.max(400, Math.min(3500, width + 40));
+                            const newHeight = Math.max(250, Math.min(2500, height + 40));
+                            
+                            // Only update if significantly different (avoid tiny fluctuations)
+                            if (Math.abs(newWidth - block.width) > 15 || Math.abs(newHeight - block.height) > 15) {
+                                console.log('✨ Updating dimensions:', { from: { w: block.width, h: block.height }, to: { w: newWidth, h: newHeight } });
+                                onUpdate({ width: newWidth, height: newHeight });
+                            } else {
+                                console.log('⏭️ Skipping update (change too small)');
+                            }
+                        } : undefined}
                     />
                     {/* Overlay for Drag when Not Interactive */}
                     {!isInteractive && (

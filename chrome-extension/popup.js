@@ -9,10 +9,40 @@ let isCapturing = false;
 const captureBtn = document.getElementById('captureBtn');
 const statusDiv = document.getElementById('status');
 const recentCapturesDiv = document.getElementById('recentCaptures');
+const shopifyCheckbox = document.getElementById('shopifyCheckbox');
+const mediaQueryCheckbox = document.getElementById('mediaQueryCheckbox');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   loadRecentCaptures();
+  loadSettings();
+});
+
+/**
+ * Load settings from storage
+ */
+async function loadSettings() {
+  try {
+    const result = await chrome.storage.local.get(['shopifyMode', 'includeMediaQueries']);
+    
+    // Set checkbox states (defaults: shopifyMode = false, includeMediaQueries = true)
+    shopifyCheckbox.checked = result.shopifyMode || false;
+    mediaQueryCheckbox.checked = result.includeMediaQueries !== false;
+    
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+}
+
+// Save settings when checkboxes change
+shopifyCheckbox.addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ shopifyMode: e.target.checked });
+  console.log('Shopify mode:', e.target.checked);
+});
+
+mediaQueryCheckbox.addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ includeMediaQueries: e.target.checked });
+  console.log('Include media queries:', e.target.checked);
 });
 
 // Capture button click

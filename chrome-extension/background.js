@@ -11,12 +11,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleElementCapture(message.data, sender.tab.id);
     sendResponse({ success: true });
   }
+  else if (message.action === 'captureScreenshot') {
+    // Handle screenshot capture request
+    handleScreenshotCapture(message.elementInfo, sender.tab.id, sendResponse);
+    return true; // Keep channel open for async response
+  }
+  else if (message.action === 'copyToClipboard') {
+    // Handle clipboard copy request (fallback method)
+    handleClipboardCopy(message.text, sender.tab.id, sendResponse);
+    return true; // Keep channel open for async response
+  }
   return true;
 });
 
 /**
  * Process captured element - React code is ALREADY CONVERTED!
- * No AI, no server needed - just copy to clipboard
+ * Storage only - clipboard handled by content.js
  */
 async function handleElementCapture(capturedData, tabId) {
   console.log('✅ Element captured with instant React conversion!');
@@ -36,35 +46,20 @@ async function handleElementCapture(capturedData, tabId) {
       await saveCapture(capturedData, reactCode);
       console.log('✅ Saved to Chrome storage');
     } catch (storageErr) {
-      console.warn('⚠️ Storage failed (quota), continuing with clipboard:', storageErr.message);
-      // Continue anyway - clipboard is the main transfer method
+      console.warn('⚠️ Storage failed (quota), clipboard is primary method:', storageErr.message);
+      // Continue anyway - content.js already copied to clipboard
     }
     
-    // Try to copy React code to clipboard
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        func: (code) => {
-          navigator.clipboard.writeText(code).then(() => {
-            console.log('✅ React code copied to clipboard!');
-          }).catch(err => {
-            console.log('Copy failed:', err);
-          });
-        },
-        args: [reactCode]
-      });
-      console.log('✅ React code copied to clipboard');
-    } catch (injectError) {
-      console.log('⚠️ Auto-copy not available, click extension to copy');
-    }
+    // NOTE: Clipboard copy is now handled in content.js (more reliable)
+    // No need to copy here since content.js already did it
     
     // Notify user
     try {
       chrome.notifications.create({
         type: 'basic',
         iconUrl: 'icons/icon-48.png',
-        title: '✅ React Code Ready!',
-        message: 'Paste directly on canvas (Ctrl+V) or click extension to copy',
+        title: '✅ React Code Copied!',
+        message: 'Paste directly on canvas (Ctrl+V)',
         priority: 2
       });
     } catch (notifError) {
@@ -87,6 +82,73 @@ async function handleElementCapture(capturedData, tabId) {
     } catch (notifError) {
       console.error('Could not show error notification');
     }
+  }
+}
+
+/**
+ * Copy text to clipboard (fallback method via service worker)
+ */
+async function handleClipboardCopy(text, tabId, sendResponse) {
+  try {
+    console.log('📋 Attempting clipboard copy via service worker...');
+    
+    // Method 1: Use chrome.scripting to execute clipboard write
+    await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: (textToCopy) => {
+        return navigator.clipboard.writeText(textToCopy)
+          .then(() => {
+            console.log('✅ Clipboard write successful');
+            return { success: true };
+          })
+          .catch((err) => {
+            console.error('❌ Clipboard write failed:', err);
+            return { success: false, error: err.message };
+          });
+      },
+      args: [text]
+    });
+    
+    console.log('✅ Clipboard copy successful');
+    sendResponse({ success: true });
+    
+  } catch (error) {
+    console.error('❌ Clipboard copy failed:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Capture screenshot and crop to element bounds
+ */
+async function handleScreenshotCapture(elementInfo, tabId, sendResponse) {
+  try {
+    console.log('📸 Capturing screenshot for element:', elementInfo.tagName);
+    
+    // Capture visible tab
+    const screenshotDataUrl = await chrome.tabs.captureVisibleTab(null, {
+      format: 'png',
+      quality: 100
+    });
+    
+    console.log('✅ Screenshot captured, cropping to element...');
+    
+    // Crop to element bounds (we'll do this in content script for better performance)
+    // For now, just send the full screenshot
+    sendResponse({ 
+      success: true, 
+      screenshot: screenshotDataUrl,
+      elementInfo: elementInfo
+    });
+    
+    console.log('✅ Screenshot sent to content script');
+    
+  } catch (error) {
+    console.error('❌ Screenshot capture failed:', error);
+    sendResponse({ 
+      success: false, 
+      error: error.message 
+    });
   }
 }
 

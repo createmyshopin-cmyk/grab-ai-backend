@@ -5,6 +5,7 @@ import { useCanvas, detectCodeType } from './useCanvas';
 import CodeBlock from './CodeBlock';
 import RightSidebar from './RightSidebar';
 import ImageUploadModal from './ImageUploadModal';
+import ViewportSelector from './ViewportSelector';
 import { NotificationContainer } from './Notification';
 import { useNotification } from '@/hooks/useNotification';
 import { throttle } from 'lodash';
@@ -78,6 +79,11 @@ function CanvasContainer() {
     
     // Screenshot upload modal state
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    
+    // Viewport selector modal state
+    const [showViewportSelector, setShowViewportSelector] = useState(false);
+    const [pendingCode, setPendingCode] = useState<string>('');
+    
     const { notifications, showNotification, removeNotification } = useNotification();
 
     // ============== MARQUEE SELECTION STATE ==============
@@ -113,6 +119,130 @@ function CanvasContainer() {
         });
     }, [updateBlock]);
 
+    // ============== VIEWPORT GENERATION ==============
+    const generateViewportVariants = useCallback((selectedViewports: Array<'mobile' | 'tablet' | 'desktop'>) => {
+        if (!pendingCode) return;
+
+        setShowViewportSelector(false);
+
+        const canvasPos = screenToCanvas(lastMousePos.current.x, lastMousePos.current.y);
+
+        // Show loading notification
+        const viewportLabels = selectedViewports.map(v => 
+            v === 'mobile' ? 'Mobile (402×874)' : 
+            v === 'tablet' ? 'Tablet (1133×744)' : 
+            'Browser (1440×1024)'
+        ).join(', ');
+
+        showNotification({
+            type: 'info',
+            message: `🎨 Generating ${selectedViewports.length} variant${selectedViewports.length > 1 ? 's' : ''}: ${viewportLabels}...`,
+            duration: 3000
+        });
+
+        // Create loading blocks
+        const loadingCode = (viewport: string, dims: string) => `export default function Loading() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-gray-50 text-gray-400 font-mono text-sm space-y-3 animate-pulse">
+      <div className="w-8 h-8 rounded-full border-2 border-gray-300 border-t-purple-500 animate-spin" />
+      <p>📱 Generating ${viewport} (${dims})...</p>
+    </div>
+  );
+}`;
+
+        // Position blocks horizontally
+        const spacing = 680;
+        const blockIds: { [key: string]: string } = {};
+        
+        selectedViewports.forEach((viewport, index) => {
+            const pos = { x: canvasPos.x - 500 + (index * spacing), y: canvasPos.y - 250 };
+            const dims = viewport === 'mobile' ? '402×874' : viewport === 'tablet' ? '1133×744' : '1440×1024';
+            const label = viewport === 'mobile' ? 'Mobile' : viewport === 'tablet' ? 'Tablet' : 'Browser';
+            blockIds[viewport] = addBlock(loadingCode(label, dims), pos);
+        });
+
+        // Call instant viewport converter
+        fetch('/api/convert/to-viewports-instant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                code: pendingCode,
+                sourceViewport: 'desktop'
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.mobile && data.tablet && data.desktop) {
+                console.log('✅ Responsive variants generated!');
+                
+                // Update selected blocks
+                selectedViewports.forEach((viewport) => {
+                    const icon = viewport === 'mobile' ? '📱' : viewport === 'tablet' ? '📱' : '🖥️';
+                    const label = viewport === 'mobile' ? 'Mobile' : viewport === 'tablet' ? 'Tablet' : 'Browser';
+                    const dims = viewport === 'mobile' ? '402×874' : viewport === 'tablet' ? '1133×744' : '1440×1024';
+                    
+                    updateBlock(blockIds[viewport], {
+                        code: data[viewport],
+                        type: 'react',
+                        name: `${icon} ${label} (${dims})`,
+                        metadata: {
+                            viewport,
+                            responsive: true,
+                            generatedFrom: 'viewport-conversion-instant'
+                        }
+                    });
+                });
+
+                showNotification({
+                    type: 'success',
+                    message: `⚡ ${selectedViewports.length} responsive variant${selectedViewports.length > 1 ? 's' : ''} created instantly!`,
+                    duration: 4000
+                });
+            } else {
+                console.error('❌ Viewport conversion failed:', data.error);
+                
+                // Fallback: Use original code
+                selectedViewports.forEach((viewport) => {
+                    const label = viewport === 'mobile' ? 'Mobile' : viewport === 'tablet' ? 'Tablet' : 'Browser';
+                    updateBlock(blockIds[viewport], {
+                        code: pendingCode,
+                        type: 'react',
+                        name: `${label} (Original)`,
+                        metadata: { viewport, responsive: false, fallback: true }
+                    });
+                });
+
+                showNotification({
+                    type: 'warning',
+                    message: 'Conversion failed. Using original code.',
+                    duration: 4000
+                });
+            }
+        })
+        .catch(err => {
+            console.error('❌ Network error:', err);
+            
+            // Fallback: Use original code
+            selectedViewports.forEach((viewport) => {
+                const label = viewport === 'mobile' ? 'Mobile' : viewport === 'tablet' ? 'Tablet' : 'Browser';
+                updateBlock(blockIds[viewport], {
+                    code: pendingCode,
+                    type: 'react',
+                    name: `${label} (Original)`,
+                    metadata: { viewport, responsive: false, error: true }
+                });
+            });
+
+            showNotification({
+                type: 'error',
+                message: 'Network error. Using original code.',
+                duration: 4000
+            });
+        });
+
+        setPendingCode('');
+    }, [pendingCode, addBlock, updateBlock, screenToCanvas, showNotification]);
+
     // ============== PASTE HANDLER ==============
     const handlePaste = useCallback((e: ClipboardEvent) => {
         const text = e.clipboardData?.getData('text');
@@ -127,20 +257,11 @@ function CanvasContainer() {
             e.preventDefault();
             e.stopPropagation();
 
-            console.log('⚡ Instant React code detected! Adding directly to canvas');
+            console.log('⚡ Instant React code detected! Showing viewport selector...');
 
-            const canvasPos = screenToCanvas(lastMousePos.current.x, lastMousePos.current.y);
-            const blockPos = { x: canvasPos.x - 300, y: canvasPos.y - 250 };
-
-            // Add directly to canvas - NO SERVER CALL NEEDED!
-            addBlock(trimmed, blockPos);
-
-            showNotification({
-                type: 'success',
-                message: '⚡ React component added instantly!',
-                duration: 2000
-            });
-
+            // Show viewport selector modal
+            setPendingCode(trimmed);
+            setShowViewportSelector(true);
             return;
         }
 
@@ -1455,6 +1576,16 @@ export default function CapturedSection() {
                     onClose={() => setIsUploadModalOpen(false)}
                     onCodeGenerated={handleCodeGenerated}
                 />
+
+                {showViewportSelector && (
+                    <ViewportSelector
+                        onConfirm={generateViewportVariants}
+                        onCancel={() => {
+                            setShowViewportSelector(false);
+                            setPendingCode('');
+                        }}
+                    />
+                )}
 
                 {/* Floating Action Buttons */}
                 <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">

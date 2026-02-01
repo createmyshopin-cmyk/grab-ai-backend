@@ -1,6 +1,6 @@
 /**
  * Grab AI - Popup Script
- * Handles UI interactions in the extension popup
+ * NOW: Instant React conversion (no AI, no server!)
  */
 
 let isCapturing = false;
@@ -29,7 +29,6 @@ captureBtn.addEventListener('click', async () => {
  */
 async function startCapture() {
   try {
-    // Get active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     if (!tab) {
@@ -37,21 +36,18 @@ async function startCapture() {
       return;
     }
     
-    // Check if we can inject content script
     if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-      showStatus('error', 'Cannot capture on Chrome system pages. Try a website like example.com');
+      showStatus('error', 'Cannot capture on Chrome system pages');
       return;
     }
     
-    // Send message to content script
     try {
       await chrome.tabs.sendMessage(tab.id, { action: 'startCapture' });
       
       isCapturing = true;
       updateCaptureButton();
-      showStatus('active', 'Hover over an element and click to capture');
+      showStatus('active', 'Click any element to capture → Instant React!');
     } catch (msgError) {
-      // Content script might not be injected yet, try to inject it
       console.log('Content script not ready, injecting...');
       
       try {
@@ -60,26 +56,24 @@ async function startCapture() {
           files: ['content.js']
         });
         
-        // Wait a bit for script to load
         setTimeout(async () => {
           try {
             await chrome.tabs.sendMessage(tab.id, { action: 'startCapture' });
             isCapturing = true;
             updateCaptureButton();
-            showStatus('active', 'Hover over an element and click to capture');
+            showStatus('active', 'Click any element to capture → Instant React!');
           } catch (e) {
             showStatus('error', 'Please refresh the page and try again');
           }
         }, 500);
       } catch (injectError) {
-        console.error('Failed to inject content script:', injectError);
         showStatus('error', 'Please refresh the page and try again');
       }
     }
     
   } catch (error) {
     console.error('Start capture error:', error);
-    showStatus('error', 'Failed to start capture. Please refresh the page.');
+    showStatus('error', 'Failed to start capture');
   }
 }
 
@@ -131,6 +125,7 @@ function updateCaptureButton() {
  */
 function showStatus(type, message) {
   statusDiv.className = 'status';
+  statusDiv.style.display = 'block';
   
   if (type) {
     statusDiv.classList.add(type);
@@ -151,18 +146,24 @@ async function loadRecentCaptures() {
     if (captures.length === 0) {
       recentCapturesDiv.innerHTML = `
         <div style="text-align: center; color: #9CA3AF; font-size: 12px; padding: 20px;">
-          No captures yet
+          No captures yet. Click "Start Capture"!
         </div>
       `;
       return;
     }
     
-    recentCapturesDiv.innerHTML = captures.slice(0, 10).map(capture => `
-      <div class="capture-item" data-id="${capture.id}">
-        <div class="capture-item-title">${capture.component.componentName}</div>
-        <div class="capture-item-url">${capture.data.pageUrl}</div>
-      </div>
-    `).join('');
+    recentCapturesDiv.innerHTML = captures.slice(0, 10).map(capture => {
+      const name = capture.componentName || 'Component';
+      const url = capture.pageUrl || capture.data?.pageUrl || 'Unknown';
+      const hostname = url !== 'Unknown' ? new URL(url).hostname : 'Unknown';
+      
+      return `
+        <div class="capture-item" data-id="${capture.id}">
+          <div class="capture-item-title">⚛️ ${name}</div>
+          <div class="capture-item-url">${hostname}</div>
+        </div>
+      `;
+    }).join('');
     
     // Add click handlers
     document.querySelectorAll('.capture-item').forEach(item => {
@@ -178,7 +179,7 @@ async function loadRecentCaptures() {
 }
 
 /**
- * View a specific capture
+ * View/copy a capture - NOW: Copy React code directly!
  */
 function viewCapture(id, captures) {
   const capture = captures.find(c => c.id === id);
@@ -188,78 +189,82 @@ function viewCapture(id, captures) {
     return;
   }
   
-  if (!capture.component || !capture.component.code) {
-    showStatus('error', 'No React code generated for this capture');
-    console.error('Capture has no code:', capture);
-    return;
+  // NEW: Copy React code directly (already converted!)
+  let textToCopy = null;
+  
+  // Priority 1: React code (instant conversion)
+  if (capture.reactCode) {
+    textToCopy = capture.reactCode;
+    console.log('📦 Copying React code (instant conversion)');
+  }
+  // Fallback: Old format with component
+  else if (capture.component && capture.component.code) {
+    textToCopy = capture.component.code;
+    console.log('📦 Copying old format React code');
+  }
+  // Fallback: Raw data for canvas conversion
+  else if (capture.clipboardText) {
+    textToCopy = capture.clipboardText;
+    console.log('📦 Copying raw data for canvas conversion');
   }
   
-  // Try multiple methods to copy to clipboard
-  copyToClipboard(capture.component.code, capture.component.componentName);
+  if (textToCopy) {
+    copyToClipboard(textToCopy, capture.componentName);
+  } else {
+    showStatus('error', 'No data to copy');
+    console.error('Capture has no data:', capture);
+  }
 }
 
 /**
- * Copy text to clipboard with multiple fallback methods
+ * Copy to clipboard with fallbacks
  */
 async function copyToClipboard(text, componentName) {
-  // Method 1: Try modern Clipboard API
+  // Method 1: Modern Clipboard API
   try {
     await navigator.clipboard.writeText(text);
-    showStatus('success', `📋 Copied to Clipboard!\n\n${componentName} is ready to paste (Ctrl+V)`);
+    showStatus('success', `✅ React code copied!\n\nPaste on canvas (Ctrl+V)`);
     setTimeout(() => showStatus('', ''), 4000);
-    console.log('✅ Code copied successfully!');
-    console.log('Preview:', text.substring(0, 200) + '...');
+    console.log('✅ Copied:', componentName);
+    console.log('   Length:', text.length, 'chars');
     return;
   } catch (err) {
-    console.log('Clipboard API failed, trying fallback...', err);
+    console.log('Clipboard API failed, trying fallback...');
   }
   
-  // Method 2: Try execCommand (fallback for older browsers)
+  // Method 2: execCommand fallback
   try {
     const textarea = document.createElement('textarea');
     textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
+    textarea.style.cssText = 'position:fixed;opacity:0';
     document.body.appendChild(textarea);
     textarea.focus();
     textarea.select();
     
-    const successful = document.execCommand('copy');
+    const success = document.execCommand('copy');
     document.body.removeChild(textarea);
     
-    if (successful) {
-      showStatus('success', `✅ ${componentName} copied! Press Ctrl+V to paste.`);
+    if (success) {
+      showStatus('success', `✅ ${componentName} copied!`);
       setTimeout(() => showStatus('', ''), 3000);
       return;
     }
   } catch (err) {
-    console.log('execCommand failed:', err);
+    console.log('execCommand failed');
   }
   
-  // Method 3: If all else fails, show the code
-  showStatus('error', 'Copy failed. Code is in console (F12)');
-  console.log('='.repeat(50));
-  console.log('REACT CODE - COPY FROM HERE:');
-  console.log('='.repeat(50));
-  console.log(text);
-  console.log('='.repeat(50));
-  
-  // Also try to select the text in a modal for manual copy
+  // Method 3: Show code for manual copy
   showCodeModal(text, componentName);
 }
 
 /**
- * Show modal with code for manual copy
+ * Show modal for manual copy
  */
 function showCodeModal(code, componentName) {
-  // Create modal
   const modal = document.createElement('div');
   modal.style.cssText = `
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.8);
     display: flex;
     align-items: center;
@@ -280,9 +285,9 @@ function showCodeModal(code, componentName) {
   `;
   
   content.innerHTML = `
-    <h3 style="margin-bottom: 12px; color: #1F2937;">Manual Copy Required</h3>
+    <h3 style="margin-bottom: 12px; color: #1F2937;">📋 Copy React Code</h3>
     <p style="margin-bottom: 12px; color: #6B7280; font-size: 13px;">
-      Automatic copy failed. Please manually select and copy the code below:
+      Select all and copy (Ctrl+A, Ctrl+C):
     </p>
     <textarea readonly style="
       width: 100%;
@@ -292,7 +297,6 @@ function showCodeModal(code, componentName) {
       padding: 12px;
       border: 1px solid #D1D5DB;
       border-radius: 6px;
-      resize: vertical;
     ">${code}</textarea>
     <div style="display: flex; gap: 8px; margin-top: 12px;">
       <button id="selectAllBtn" style="
@@ -304,7 +308,7 @@ function showCodeModal(code, componentName) {
         border-radius: 6px;
         cursor: pointer;
         font-weight: 600;
-      ">Select All</button>
+      ">Select All & Copy</button>
       <button id="closeModalBtn" style="
         flex: 1;
         padding: 10px;
@@ -313,7 +317,6 @@ function showCodeModal(code, componentName) {
         border: none;
         border-radius: 6px;
         cursor: pointer;
-        font-weight: 600;
       ">Close</button>
     </div>
   `;
@@ -321,39 +324,34 @@ function showCodeModal(code, componentName) {
   modal.appendChild(content);
   document.body.appendChild(modal);
   
-  // Select all button
   document.getElementById('selectAllBtn').addEventListener('click', () => {
     const textarea = content.querySelector('textarea');
     textarea.select();
     try {
       document.execCommand('copy');
-      showStatus('success', '✅ Code copied!');
+      showStatus('success', '✅ Copied!');
+      document.body.removeChild(modal);
     } catch (e) {
-      console.error('Manual copy also failed:', e);
+      console.error('Copy failed:', e);
     }
   });
   
-  // Close button
   document.getElementById('closeModalBtn').addEventListener('click', () => {
     document.body.removeChild(modal);
   });
   
-  // Close on background click
   modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      document.body.removeChild(modal);
-    }
+    if (e.target === modal) document.body.removeChild(modal);
   });
 }
 
-// Listen for capture complete messages
+// Listen for capture complete
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'captureComplete') {
     isCapturing = false;
     updateCaptureButton();
-    showStatus('success', 'Capture complete! Loading...');
+    showStatus('success', '✅ React code ready! Click to copy');
     
-    // Reload recent captures
     setTimeout(() => {
       loadRecentCaptures();
       showStatus('', '');

@@ -120,6 +120,138 @@ function CanvasContainer() {
 
         const trimmed = text.trim();
 
+        // PRIORITY 1: Check if it's READY React code from instant conversion
+        // The extension now converts HTML→React instantly (no server needed!)
+        if (trimmed.startsWith('import React from "react"') && 
+            trimmed.includes('export default function Captured')) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            console.log('⚡ Instant React code detected! Adding directly to canvas');
+
+            const canvasPos = screenToCanvas(lastMousePos.current.x, lastMousePos.current.y);
+            const blockPos = { x: canvasPos.x - 300, y: canvasPos.y - 250 };
+
+            // Add directly to canvas - NO SERVER CALL NEEDED!
+            addBlock(trimmed, blockPos);
+
+            showNotification({
+                type: 'success',
+                message: '⚡ React component added instantly!',
+                duration: 2000
+            });
+
+            return;
+        }
+
+        // PRIORITY 2: Check if it's raw capture data (fallback - older extension)
+        let captureData = null;
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed.type === 'grab-ai-capture' && parsed.version === '1.0') {
+                captureData = parsed;
+            }
+        } catch (e) {
+            // Not JSON, continue with normal flow
+        }
+
+        // Handle raw capture data from extension (fallback path)
+        if (captureData) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            console.log('📦 Raw capture data detected, using server conversion');
+            console.log('   Tag:', captureData.element?.tag);
+
+            const canvasPos = screenToCanvas(lastMousePos.current.x, lastMousePos.current.y);
+            const blockPos = { x: canvasPos.x - 300, y: canvasPos.y - 250 };
+
+            // Show loading state - Direct conversion
+            const loadingCode = `export default function Loading() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-gray-50 text-gray-400 font-mono text-sm space-y-3 animate-pulse">
+      <div className="w-8 h-8 rounded-full border-2 border-gray-300 border-t-green-500 animate-spin" />
+      <p>⚡ Converting to React...</p>
+    </div>
+  );
+}`;
+
+            const id = addBlock(loadingCode, blockPos);
+
+            // Use DIRECT conversion (like htmltoreact.app - NO AI interpretation!)
+            // This preserves exact styles and structure
+            fetch('/api/convert/direct', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ captureData })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.code) {
+                        console.log('✅ Direct conversion successful!');
+                        console.log('   Type:', data.conversionType);
+                        updateBlock(id, {
+                            code: data.code,
+                            type: 'react',
+                            metadata: {
+                                generatedFrom: 'extension-capture-direct',
+                                conversionType: data.conversionType || 'direct',
+                                sourceUrl: captureData.sourceUrl,
+                                capturedTag: captureData.element?.tag,
+                                capturedAt: captureData.capturedAt,
+                                styles: data.styles
+                            }
+                        });
+                        showNotification({
+                            type: 'success',
+                            message: `✅ Direct conversion: ${captureData.element?.tag} → React (exact clone!)`,
+                            duration: 3000
+                        });
+                    } else {
+                        console.error('❌ Direct conversion failed:', data.error);
+                        // Fallback: Show raw HTML with inline styles
+                        const fallbackCode = `import React from "react";
+
+export default function CapturedSection() {
+  return (
+    <div dangerouslySetInnerHTML={{ __html: \`${(captureData.element?.html || trimmed).replace(/`/g, '\\`')}\` }} />
+  );
+}`;
+                        updateBlock(id, {
+                            code: fallbackCode,
+                            type: 'react'
+                        });
+                        showNotification({
+                            type: 'warning',
+                            message: 'Direct conversion failed. Using HTML fallback.',
+                            duration: 4000
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error('❌ Network error:', err);
+                    // Fallback: Create basic React wrapper
+                    const fallbackCode = `import React from "react";
+
+export default function CapturedSection() {
+  return (
+    <div dangerouslySetInnerHTML={{ __html: \`${(captureData.element?.html || trimmed).replace(/`/g, '\\`')}\` }} />
+  );
+}`;
+                    updateBlock(id, {
+                        code: fallbackCode,
+                        type: 'react'
+                    });
+                    showNotification({
+                        type: 'error',
+                        message: 'Network error. Using HTML fallback.',
+                        duration: 4000
+                    });
+                });
+
+            return; // Exit early after handling capture data
+        }
+
         // Check if it looks like code (simple heuristic)
         const isCode =
             /<[a-z!/]/i.test(trimmed) ||

@@ -1,286 +1,141 @@
-# ⚡ Quick Test Guide - Extension Fix
+# 🧪 Quick Test Guide
 
-## 🎯 3-Minute Test
+## Test 1: Basic Capture (30 seconds)
 
-### Step 1: Reload Extension (30 seconds)
 ```
-1. Type: chrome://extensions/
-2. Find: "Grab AI - Website to React"
-3. Click: 🔄 Reload button
-4. See: Extension reloads
-```
-
-### Step 2: Test Capture (1 minute)
-```
-1. Go to: https://domnom.in
-2. Click: Extension icon (top right)
-3. Click: "Start Capture" button
-4. Move mouse over page elements
-5. See: Green overlay follows cursor
-6. Click: The red banner at top
-7. See: Preview modal appears
-8. Click: "✓ Looks Good! Capture Now"
-```
-
-### Step 3: Verify Copy (30 seconds)
-```
-1. See: "✅ React JSX Ready!" notification
-2. Check console (F12):
-   ✅ React code copied to clipboard! [number] characters
-3. Go to: Your canvas app
-4. Click: Anywhere on canvas
-5. Press: Ctrl+V (Cmd+V on Mac)
-6. See: Viewport selector appears
-7. Select: All three viewports
-8. Click: Generate button
-```
-
-### Step 4: Success! (30 seconds)
-```
-1. See: 3 components appear on canvas
-2. Each shows different viewport
-3. Code is properly formatted
-4. Styles are preserved
-5. ✅ Everything works!
+1. Reload extension (chrome://extensions/)
+2. Visit https://example.com
+3. Click extension → "Start Capture"
+4. Click any element
+5. Paste code → Should see React component ✅
 ```
 
 ---
 
-## 🎨 Visual Checkpoints
+## Test 2: Shopify Mode (1 minute)
 
-### Checkpoint 1: Extension Loaded
+### Step 1: Enable Shopify Mode
 ```
-Browser Console:
-✅ Grab AI Extension loaded - Ready to capture!
+1. Click extension icon
+2. Check "🏪 Shopify Mode"
+3. Should stay checked ✅
 ```
-✅ Pass / ❌ Fail → Reload extension
 
-### Checkpoint 2: Capture Mode Active
+### Step 2: Test on Shopify Site
 ```
-On-page notification:
-┌──────────────────────────────────┐
-│ Capture Mode Active              │
-│ Click any section to capture     │
-└──────────────────────────────────┘
+1. Visit https://www.gymshark.com
+2. Click "Start Capture"
+3. Click hero section
+4. Paste code
+5. Scroll to bottom → Should see Shopify comment:
+   /*
+    * 🏪 SHOPIFY SECTION DATA
+    * Shop: gymshark.com
+    * ...
+    */
 ```
-✅ Pass / ❌ Fail → Click "Start Capture"
 
-### Checkpoint 3: Preview Modal
-```
-Modal appears with:
-- 📸 Screenshot of element
-- Element info (size, classes)
-- 🔤 Custom fonts detected (if any)
-- ✓ Looks Good! button
-```
-✅ Pass / ❌ Fail → Try different element
-
-### Checkpoint 4: Clipboard Copy
-```
-Notification shows:
-✅ React JSX Ready!
-Copied to clipboard - paste anywhere
-```
-✅ Pass / ❌ Fail → See troubleshooting
-
-### Checkpoint 5: Canvas Paste
-```
-Canvas detects:
-🎯 Code paste detected
-⚡ Instant React code detected!
-```
-✅ Pass / ❌ Fail → Check clipboard
+### Expected Results:
+- ✅ Shopify data in comments
+- ✅ Section IDs captured
+- ✅ Product info (if on product page)
+- ✅ Theme name
 
 ---
 
-## 🐛 Common Issues & Quick Fixes
+## Test 3: Media Query Toggle (30 seconds)
 
-### Issue 1: "Extension not responding"
+### Step 1: With Media Queries ON (default)
 ```
-Fix: Reload extension
-1. chrome://extensions/
-2. Click 🔄
-3. Try again
-```
-
-### Issue 2: "Clipboard copy failed"
-```
-Fix: Click page first
-1. Click anywhere on the page
-2. Page must be focused
-3. Try capture again
+1. Keep "📱 Include Media Queries" CHECKED
+2. Visit any responsive site (e.g., tailwindui.com)
+3. Capture any element
+4. Paste code
+5. Look for @media in <style> tag → Should exist ✅
 ```
 
-### Issue 3: "Nothing happens when I paste"
+### Step 2: With Media Queries OFF
 ```
-Fix: Check clipboard
-1. Open extension popup
-2. See recent captures
-3. Click capture to copy
-4. Try paste again
-```
-
-### Issue 4: "Preview modal doesn't appear"
-```
-Fix: Check permissions
-1. chrome://extensions/
-2. Click "Details" on Grab AI
-3. Site access: "On all sites"
-4. Try again
+1. UNCHECK "📱 Include Media Queries"
+2. Capture same element
+3. Paste code
+4. Look for @media in <style> tag → Should NOT exist ✅
+5. File size should be smaller ✅
 ```
 
 ---
 
-## 📊 Expected vs Actual
+## Test 4: Settings Persistence (30 seconds)
 
-### What You Should See:
-
-#### 1. Hover State
 ```
-Element:     [Green overlay box around element]
-Breadcrumb:  [Black tooltip at top showing element path]
-Cursor:      Crosshair
-```
-
-#### 2. Click State
-```
-Modal:       [White modal with preview]
-Screenshot:  [Element captured image]
-Buttons:     [Cancel] [✓ Looks Good!]
-```
-
-#### 3. After Capture
-```
-Notification: [Green popup top-right]
-Console:      ✅ React code copied...
-Clipboard:    [Contains React code]
-```
-
-#### 4. Canvas Paste
-```
-Action:       Ctrl+V
-Result:       Viewport selector modal
-Options:      ☑ Mobile ☑ Tablet ☑ Desktop
+1. Check both boxes
+2. Close popup
+3. Reopen popup
+4. Both boxes should still be checked ✅
+5. Close browser
+6. Reopen browser + extension
+7. Both boxes should STILL be checked ✅
 ```
 
 ---
 
-## 🎯 Success Criteria
+## Common Issues
 
-### ✅ All Green Means Working:
-- ✅ Extension loads without errors
-- ✅ Capture mode activates (green overlay)
-- ✅ Preview modal appears on click
-- ✅ "Captured!" notification shows
-- ✅ Console shows "copied to clipboard"
-- ✅ Paste works on canvas
-- ✅ Viewport variants generate
+### Issue: Shopify checkbox doesn't work
+**Fix:** Make sure you're on an actual Shopify site (gymshark.com, allbirds.com, shopify.com)
 
-### ❌ Any Red Means Issue:
-- ❌ No green overlay → Reload extension
-- ❌ No preview modal → Check permissions
-- ❌ No clipboard copy → Use popup fallback
-- ❌ Paste doesn't work → Check console
+### Issue: No Shopify data in output
+**Fix:** Element might not be inside a Shopify section. Try capturing a larger parent element.
+
+### Issue: Media queries still appear when unchecked
+**Fix:** Clear browser cache, reload extension, try again
 
 ---
 
-## 🚀 Speed Test
+## What to Look For
 
-**Target**: Complete capture in under 10 seconds
+### ✅ Shopify Mode Working:
+- Console log: "🏪 Shopify site detected!"
+- Comment block at bottom of code
+- Section IDs, product info, theme name
 
-```
-Timer Start
-  ↓
-0s:  Click "Start Capture"
-1s:  Hover over element
-2s:  Click element
-3s:  Preview loads
-4s:  Click "Capture Now"
-5s:  Notification appears
-6s:  Go to canvas
-7s:  Press Ctrl+V
-8s:  Select viewports
-9s:  Click "Generate"
-10s: ✅ Done!
-```
+### ✅ Media Queries Working:
+- When ON: `@media (max-width: 768px) { ... }` in CSS
+- When OFF: No `@media` rules in CSS
 
-If it takes longer than 15 seconds, something is wrong.
+### ✅ Settings Working:
+- Checkboxes remember state
+- Persist across popup close/open
+- Persist across browser restart
 
 ---
 
-## 🔧 Advanced Testing
+## Console Logs to Check
 
-### Test Different Websites:
-```
-1. Simple (Google.com)      → Test basic HTML
-2. Complex (Amazon.com)     → Test heavy CSS
-3. Shopify (domnom.in)      → Test Shopify mode
-4. Tailwind (tailwindcss.com) → Test responsive
-```
+Open DevTools (F12) → Console:
 
-### Test Different Elements:
+**With Shopify Mode ON:**
 ```
-1. Hero banner      → Large section
-2. Product card     → Medium component
-3. Button           → Small element
-4. Navigation       → Complex layout
-5. Footer           → Multiple sections
+🏪 Shopify site detected!
+✅ Extracted CSS: 15000 characters
+✅ React JSX conversion complete!
+   Code length: 25000
+   Shopify data included
 ```
 
-### Test Edge Cases:
+**With Media Queries OFF:**
 ```
-1. Element with custom fonts → Should include fonts
-2. Element with animations → Should include @keyframes
-3. Element with images → Should preserve URLs
-4. Element with inline styles → Should preserve styles
+✅ Extracted CSS: 8000 characters (smaller!)
 ```
 
 ---
 
-## 📱 Mobile Test
+## Ready to Use!
 
-If you have responsive design:
-```
-1. Open DevTools (F12)
-2. Toggle device toolbar (Ctrl+Shift+M)
-3. Select "iPhone 12 Pro"
-4. Capture same element
-5. Generate mobile variant
-6. Compare with desktop
-7. Should look different!
-```
+If all 4 tests pass:
+- ✅ Extension working perfectly
+- ✅ Shopify detection working
+- ✅ Media query toggle working
+- ✅ Settings persisting
 
----
-
-## 🎉 Final Check
-
-After completing all tests, you should have:
-- ✅ Extension reloaded
-- ✅ Clipboard copy working
-- ✅ Preview modal working
-- ✅ Canvas paste working
-- ✅ Viewport variants generating
-- ✅ Responsive code working
-- ✅ Auto-fit working
-
-**All good? You're ready to capture the web! 🚀**
-
----
-
-## 🆘 Emergency Fallback
-
-If **NOTHING** works:
-
-### Nuclear Option: Fresh Install
-```bash
-1. Remove extension completely
-2. Close Chrome entirely
-3. Reopen Chrome
-4. chrome://extensions/
-5. "Load unpacked"
-6. Select: c:\APP DEV\grab-ai-backend-main\chrome-extension\
-7. Extension fresh installed
-8. Test again - should work 100%
-```
-
-**This fixes 99.9% of issues!**
+**Start capturing!** 🚀

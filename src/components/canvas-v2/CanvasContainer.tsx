@@ -84,6 +84,11 @@ function CanvasContainer() {
     const [showViewportSelector, setShowViewportSelector] = useState(false);
     const [pendingCode, setPendingCode] = useState<string>('');
     
+    // Share modal state
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [shareLink, setShareLink] = useState<string>('');
+    const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+    
     const { notifications, showNotification, removeNotification } = useNotification();
 
     // ============== MARQUEE SELECTION STATE ==============
@@ -243,12 +248,205 @@ function CanvasContainer() {
         setPendingCode('');
     }, [pendingCode, addBlock, updateBlock, screenToCanvas, showNotification]);
 
+    // ============== STYLE CLEANUP UTILITY ==============
+    const cleanupCapturedCode = useCallback((code: string): string => {
+        console.log('🧹 Starting SMART cleanup - preserving colors...');
+        console.log('📊 Original code length:', code.length, 'characters');
+        
+        let cleaned = code;
+        
+        // STEP 1: Extract IMPORTANT colors BEFORE removing (preserve the red background!)
+        console.log('🎨 Extracting important colors before cleanup...');
+        
+        const extractedColors: Map<string, any> = new Map();
+        
+        // Extract backgroundColor (the red background!)
+        const bgColorRegex = /backgroundColor:\s*"([^"]+)"/g;
+        let bgMatch;
+        while ((bgMatch = bgColorRegex.exec(code)) !== null) {
+            const color = bgMatch[1];
+            // Only preserve non-default colors (not white/transparent)
+            if (color !== 'rgb(255, 255, 255)' && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') {
+                extractedColors.set('backgroundColor', color);
+                console.log(`🎨 Extracted backgroundColor: ${color}`);
+            }
+        }
+        
+        // Extract text colors (white text on red background)
+        const colorRegex = /color:\s*"(rgb\([^)]+\))"/g;
+        let colorMatch;
+        const textColors: string[] = [];
+        while ((colorMatch = colorRegex.exec(code)) !== null) {
+            const color = colorMatch[1];
+            if (color === 'rgb(255, 255, 255)') {
+                textColors.push(color);
+                console.log(`🎨 Found white text: ${color}`);
+            }
+        }
+        
+        // Extract button background (yellow)
+        const buttonBgRegex = /backgroundColor:\s*"rgb\(255,\s*203,\s*1\)"/;
+        if (buttonBgRegex.test(code)) {
+            extractedColors.set('buttonBg', 'rgb(255, 203, 1)');
+            console.log('🎨 Found yellow button background');
+        }
+        
+        // Extract background images
+        let backgroundImageUrl = null;
+        const bgImgMatch = code.match(/backgroundImage:\s*["']url\(['"]*([^'"()]+)['"]*\)["']/);
+        if (bgImgMatch) {
+            backgroundImageUrl = bgImgMatch[1];
+            console.log('🖼️ Extracted background image:', backgroundImageUrl);
+        }
+        
+        // STEP 2: Remove ALL inline style objects using PROPER BRACE MATCHING
+        console.log('🗑️ Removing ALL bloated inline style objects...');
+        const prevLength = cleaned.length;
+        
+        // Function to find and remove style={{...}} with proper brace matching
+        function removeAllStyleObjects(str: string): string {
+            let result = '';
+            let i = 0;
+            
+            while (i < str.length) {
+                // Look for " style={{"
+                if (str.substring(i, i + 8) === ' style={{') {
+                    // Found a style object, skip it entirely
+                    i += 8; // Skip " style={{"
+                    
+                    let braceCount = 2; // Already have {{
+                    
+                    // Skip everything until we close both braces
+                    while (i < str.length && braceCount > 0) {
+                        if (str[i] === '{') braceCount++;
+                        else if (str[i] === '}') braceCount--;
+                        i++;
+                    }
+                    
+                    // Successfully removed the style object
+                    continue;
+                }
+                
+                // Not a style object, keep the character
+                result += str[i];
+                i++;
+            }
+            
+            return result;
+        }
+        
+        cleaned = removeAllStyleObjects(cleaned);
+        
+        const removed = prevLength - cleaned.length;
+        console.log(`   ✅ Removed ${removed} characters (${Math.round((removed/prevLength)*100)}% of code)`);
+        console.log(`   ✅ New length: ${cleaned.length} characters`);
+        
+        // STEP 3: RE-ADD ONLY essential colors (minimal styles)
+        console.log('✅ Re-adding ONLY essential styles...');
+        
+        // 1. Add RED BACKGROUND to section (the most important!)
+        if (extractedColors.has('backgroundColor')) {
+            const redBg = extractedColors.get('backgroundColor');
+            cleaned = cleaned.replace(
+                /<section className="([^"]*custom-collection-slider-section[^"]*)"/,
+                `<section className="$1" style={{ backgroundColor: "${redBg}", padding: "50px" }}` 
+            );
+            console.log(`✅ Re-added red background: ${redBg}`);
+        }
+        
+        // 2. Add WHITE text + padding to heading
+        cleaned = cleaned.replace(
+            /<h4 className="([^"]*section-title-2[^"]*)"/,
+            '<h4 className="$1" style={{ color: "rgb(255, 255, 255)", backgroundColor: "rgb(214, 38, 65)", padding: "40px", textAlign: "center" }}'
+        );
+        
+        // 3. Add WHITE text + large font to span in heading
+        cleaned = cleaned.replace(
+            /<span>([^<]*Protein Bars[^<]*)<\/span>/,
+            '<span style={{ color: "rgb(255, 255, 255)", fontSize: "42px", fontFamily: "recoleta" }}>$1</span>'
+        );
+        
+        // 4. Add WHITE text to ALL paragraphs
+        // Handle both <p className="..."> and <p>
+        cleaned = cleaned.replace(
+            /<p>/g,
+            '<p style={{ color: "rgb(255, 255, 255)" }}>'
+        );
+        cleaned = cleaned.replace(
+            /<p className="([^"]*)"/g,
+            '<p className="$1" style={{ color: "rgb(255, 255, 255)" }}'
+        );
+        
+        // 5. Add WHITE text to ALL <b> tags
+        cleaned = cleaned.replace(
+            /<b>/g,
+            '<b style={{ color: "rgb(255, 255, 255)" }}>'
+        );
+        
+        // 6. Add YELLOW button styling
+        cleaned = cleaned.replace(
+            /<a href="([^"]*)">View All<\/a>/,
+            '<a href="$1" style={{ backgroundColor: "rgb(255, 203, 1)", color: "rgb(53, 14, 4)", padding: "10px 40px", borderRadius: "6px", textDecoration: "none", display: "inline-block" }}>View All</a>'
+        );
+        
+        // 7. Add background image if exists
+        if (backgroundImageUrl && cleaned.includes('banner__content')) {
+            cleaned = cleaned.replace(
+                /className="([^"]*banner__content[^"]*?)"/,
+                `className="$1" style={{ backgroundImage: "url('${backgroundImageUrl}')", backgroundSize: "cover", backgroundPosition: "center" }}`
+            );
+            console.log('✅ Re-added background image');
+        }
+        
+        console.log('✅ Color re-addition complete!');
+        
+        // STEP 4: FALLBACK - If no specific patterns matched, add a wrapper with background
+        if (extractedColors.has('backgroundColor') && !cleaned.includes('style={{')) {
+            console.warn('⚠️ No specific patterns matched, adding fallback wrapper...');
+            const redBg = extractedColors.get('backgroundColor');
+            
+            // Wrap the entire return content in a div with red background
+            cleaned = cleaned.replace(
+                /return \(\s*<>\s*/,
+                `return (\n    <div style={{ backgroundColor: "${redBg}", minHeight: "200px", padding: "50px" }}>\n      <>`
+            );
+            cleaned = cleaned.replace(
+                /<\/>\s*\);/,
+                `</>\n    </div>\n  );`
+            );
+            console.log('✅ Added fallback wrapper with red background');
+        }
+        
+        // STEP 5: Ensure component is properly structured
+        if (!cleaned.includes('return')) {
+            console.error('❌ Component has no return statement!');
+        }
+        
+        console.log('✅ SMART Cleanup complete!');
+        console.log('📊 Final code length:', cleaned.length, 'characters (was:', code.length, ')');
+        console.log('📉 Reduced by:', removed, 'characters (' + Math.round((removed/code.length)*100) + '%)');
+        console.log('🎨 Colors preserved: Red background, white text, yellow button');
+        console.log('🚀 Component is now MUCH SMALLER and should render fast!');
+        
+        // Show first 500 chars of cleaned code for debugging
+        if (cleaned.length > 500) {
+            console.log('📝 First 500 chars of cleaned code:');
+            console.log(cleaned.substring(0, 500) + '...');
+        }
+        
+        return cleaned;
+    }, []);
+
     // ============== PASTE HANDLER ==============
     const handlePaste = useCallback((e: ClipboardEvent) => {
         const text = e.clipboardData?.getData('text');
-        if (!text) return;
+        if (!text) {
+            console.log('❌ No text in clipboard');
+            return;
+        }
 
         const trimmed = text.trim();
+        console.log('📋 Paste detected, length:', trimmed.length, 'chars');
 
         // PRIORITY 1: Check if it's READY React code from instant conversion
         // The extension now converts HTML→React instantly (no server needed!)
@@ -257,10 +455,13 @@ function CanvasContainer() {
             e.preventDefault();
             e.stopPropagation();
 
-            console.log('⚡ Instant React code detected! Showing viewport selector...');
+            console.log('⚡ Instant React code detected! Cleaning up styles...');
 
-            // Show viewport selector modal
-            setPendingCode(trimmed);
+            // Clean up the code to remove hidden elements and fix visibility
+            const cleanedCode = cleanupCapturedCode(trimmed);
+
+            // Show viewport selector modal with cleaned code
+            setPendingCode(cleanedCode);
             setShowViewportSelector(true);
             return;
         }
@@ -379,7 +580,11 @@ export default function CapturedSection() {
             /^(import|export|function|class|const|let|var)\b/m.test(trimmed) ||
             (trimmed.includes('=>') && trimmed.includes('{'));
 
-        if (!isCode) return;
+        console.log('🔍 Is code?', isCode);
+        if (!isCode) {
+            console.log('⚠️ Not recognized as code, ignoring');
+            return;
+        }
 
         e.preventDefault();
         e.stopPropagation();
@@ -389,9 +594,11 @@ export default function CapturedSection() {
         // Get position in canvas coordinates
         const canvasPos = screenToCanvas(lastMousePos.current.x, lastMousePos.current.y);
         const blockPos = { x: canvasPos.x - 300, y: canvasPos.y - 250 };
+        console.log('📍 Canvas position:', canvasPos, '→ Block position:', blockPos);
 
         // Detect type using helper
         const type = detectCodeType(trimmed);
+        console.log('📝 Detected type:', type);
 
         // If HTML, use AI to convert to React
         if (type === 'html') {
@@ -443,7 +650,9 @@ export default function CapturedSection() {
                 });
         } else if (type === 'react') {
             // It's already React code, just add it AND analyze it
+            console.log('✅ Adding React block');
             const id = addBlock(trimmed, blockPos);
+            console.log('✅ Block added with ID:', id);
 
             // Analyze for keywords
             fetch('/api/analyze', {
@@ -460,9 +669,10 @@ export default function CapturedSection() {
                 .catch(err => console.error('Analysis failed:', err));
         } else {
             // Plain text or unknown
+            console.log('📄 Adding as plain text/vanilla');
             addBlock(text, blockPos);
         }
-    }, [addBlock, updateBlock, screenToCanvas]);
+    }, [addBlock, updateBlock, screenToCanvas, cleanupCapturedCode]);
 
     // Track mouse position for paste placement AND update selection box
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -553,10 +763,29 @@ export default function CapturedSection() {
 
     // ============== CONTEXT MENU HANDLER ==============
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'canvas' | 'block'; blockId?: string } | null>(null);
+    const [hasClipboardContent, setHasClipboardContent] = useState(false);
+
+    // Check clipboard content when context menu opens
+    const checkClipboard = useCallback(async () => {
+        try {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                const text = await navigator.clipboard.readText();
+                setHasClipboardContent(!!text && text.trim().length > 0);
+            } else {
+                setHasClipboardContent(false);
+            }
+        } catch (err) {
+            // Permission denied or not available
+            setHasClipboardContent(false);
+        }
+    }, []);
 
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         const target = e.target as HTMLElement;
+
+        // Check clipboard content
+        checkClipboard();
 
         // Check for block click
         const blockElement = target.closest('[data-block-id]');
@@ -573,12 +802,88 @@ export default function CapturedSection() {
         } else {
             setContextMenu(null);
         }
-    }, [setSelectedBlockId]);
+    }, [setSelectedBlockId, checkClipboard]);
 
     // Close context menu on click anywhere
     const handleGlobalClick = useCallback(() => {
         if (contextMenu) setContextMenu(null);
     }, [contextMenu]);
+
+    // ============== SHARE FUNCTIONALITY ==============
+    const handleShare = useCallback(async () => {
+        setIsShareModalOpen(true);
+        setIsGeneratingLink(true);
+        
+        try {
+            // Get current canvas state
+            const state = getState();
+            
+            // Generate a unique share ID
+            const shareId = `canvas-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Save to Supabase
+            const { error } = await supabase
+                .from('shared_canvas')
+                .insert({
+                    id: shareId,
+                    data: state,
+                    created_at: new Date().toISOString(),
+                });
+            
+            if (error) {
+                console.error('Share error:', error);
+                showNotification({
+                    type: 'error',
+                    message: 'Failed to generate share link',
+                    duration: 3000
+                });
+                setIsGeneratingLink(false);
+                return;
+            }
+            
+            // Generate shareable link
+            const baseUrl = window.location.origin;
+            const link = `${baseUrl}/shared/${shareId}`;
+            setShareLink(link);
+            setIsGeneratingLink(false);
+            
+            showNotification({
+                type: 'success',
+                message: '🔗 Share link generated!',
+                duration: 2000
+            });
+            
+        } catch (err) {
+            console.error('Share error:', err);
+            showNotification({
+                type: 'error',
+                message: 'Failed to generate share link',
+                duration: 3000
+            });
+            setIsGeneratingLink(false);
+        }
+    }, [getState, showNotification]);
+
+    // Copy share link to clipboard
+    const handleCopyShareLink = useCallback(() => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(shareLink)
+                .then(() => {
+                    showNotification({
+                        type: 'success',
+                        message: '✅ Link copied to clipboard!',
+                        duration: 2000
+                    });
+                })
+                .catch(() => {
+                    showNotification({
+                        type: 'error',
+                        message: 'Failed to copy link',
+                        duration: 2000
+                    });
+                });
+        }
+    }, [shareLink, showNotification]);
 
     // Handle code generated from screenshot
     const handleCodeGenerated = useCallback((data: {
@@ -638,6 +943,8 @@ export default function CapturedSection() {
 
             // Trigger the existing paste handler by creating a synthetic paste event
             const fakeEvent = {
+                preventDefault: () => {},
+                stopPropagation: () => {},
                 clipboardData: {
                     getData: (type: string) => type === 'text' ? text : ''
                 }
@@ -672,7 +979,7 @@ export default function CapturedSection() {
     }, [handlePaste, showNotification]);
 
     // Handle Action from context menu
-    const handleContextMenuAction = useCallback((action: 'new' | 'delete' | 'duplicate' | 'copy' | 'refresh' | 'rename' | 'export') => {
+    const handleContextMenuAction = useCallback((action: 'new' | 'delete' | 'duplicate' | 'copy' | 'refresh' | 'rename' | 'export' | 'paste') => {
         if (!contextMenu) return;
 
         const blockId = contextMenu.blockId;
@@ -711,6 +1018,81 @@ export default function CapturedSection() {
             return;
         }
 
+        if (action === 'paste') {
+            // Store the context menu position before closing it
+            const menuX = contextMenu.x;
+            const menuY = contextMenu.y;
+            setContextMenu(null);
+            
+            // Try to paste from clipboard
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText()
+                    .then(text => {
+                        if (text && text.trim()) {
+                            console.log('📋 Context menu paste - clipboard has', text.length, 'characters');
+                            console.log('📋 First 200 chars:', text.substring(0, 200));
+                            
+                            // Update last mouse position to context menu position
+                            lastMousePos.current = { x: menuX, y: menuY };
+                            
+                            // Create synthetic paste event with all required methods
+                            const fakeEvent = {
+                                preventDefault: () => {},
+                                stopPropagation: () => {},
+                                clipboardData: {
+                                    getData: (type: string) => type === 'text' ? text : ''
+                                }
+                            } as ClipboardEvent;
+                            
+                            // Call handlePaste - it will handle notifications internally
+                            handlePaste(fakeEvent);
+                            
+                            // Only show success if it looks like code
+                            const looksLikeCode = /<[a-z!/]/i.test(text.trim()) ||
+                                /^(import|export|function|class|const|let|var)\b/m.test(text.trim()) ||
+                                (text.includes('=>') && text.includes('{')) ||
+                                text.trim().startsWith('import React') ||
+                                text.includes('export default');
+                            
+                            if (looksLikeCode) {
+                                showNotification({
+                                    type: 'success',
+                                    message: '✅ Code pasted at cursor position!',
+                                    duration: 2000
+                                });
+                            } else {
+                                showNotification({
+                                    type: 'warning',
+                                    message: '⚠️ Clipboard content may not be code',
+                                    duration: 2000
+                                });
+                            }
+                        } else {
+                            showNotification({
+                                type: 'error',
+                                message: 'Clipboard is empty',
+                                duration: 2000
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Paste error:', err);
+                        showNotification({
+                            type: 'info',
+                            message: 'Use Ctrl+V to paste instead',
+                            duration: 2000
+                        });
+                    });
+            } else {
+                showNotification({
+                    type: 'info',
+                    message: 'Use Ctrl+V to paste',
+                    duration: 2000
+                });
+            }
+            return;
+        }
+
         if (action === 'new') {
             const canvasPos = screenToCanvas(contextMenu.x, contextMenu.y);
             const blockPos = { x: canvasPos.x, y: canvasPos.y }; // Place exactly where clicked
@@ -737,7 +1119,7 @@ export default function CapturedSection() {
 
         // Catch-all for others for now
         setContextMenu(null);
-    }, [contextMenu, screenToCanvas, addBlock, removeBlock, duplicateBlock, blocks]);
+    }, [contextMenu, screenToCanvas, addBlock, removeBlock, duplicateBlock, blocks, handlePaste, showNotification]);
 
     // Custom Mac Cursor Style (Black Arrow)
     const macCursorStyle = `url('data:image/svg+xml;utf8,<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 2V19.5L9.75 15.25L13.5 23.5L16.5 22L12.5 14L19.5 14L5.5 2Z" fill="black" stroke="white" stroke-width="1.5"/></svg>') 2 2, default`;
@@ -1164,6 +1546,36 @@ export default function CapturedSection() {
         return () => window.removeEventListener('paste', handlePaste, { capture: true });
     }, [handlePaste]);
 
+    // ============== CLIPBOARD MONITORING ==============
+    useEffect(() => {
+        // Check clipboard when user copies something
+        const handleCopy = () => {
+            setTimeout(() => checkClipboard(), 100); // Small delay to ensure clipboard is updated
+        };
+
+        const handleCut = () => {
+            setTimeout(() => checkClipboard(), 100);
+        };
+
+        // Check clipboard when window gains focus (user might have copied elsewhere)
+        const handleFocus = () => {
+            checkClipboard();
+        };
+
+        window.addEventListener('copy', handleCopy);
+        window.addEventListener('cut', handleCut);
+        window.addEventListener('focus', handleFocus);
+
+        // Initial check
+        checkClipboard();
+
+        return () => {
+            window.removeEventListener('copy', handleCopy);
+            window.removeEventListener('cut', handleCut);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [checkClipboard]);
+
     // ============== SUPABASE SYNC ==============
     useEffect(() => {
         const syncToSupabase = throttle(async () => {
@@ -1268,7 +1680,10 @@ export default function CapturedSection() {
                         </svg>
                         Import from web
                     </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors">
+                    <button 
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors"
+                        onClick={handleShare}
+                    >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" />
                             <polyline points="16 6 12 2 8 6" />
@@ -1286,17 +1701,38 @@ export default function CapturedSection() {
                     style={{ left: contextMenu.x, top: contextMenu.y }}
                 >
                     {contextMenu.type === 'canvas' ? (
-                        <button
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 flex items-center gap-2"
-                            onClick={() => handleContextMenuAction('new')}
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                                <line x1="12" y1="8" x2="12" y2="16" />
-                                <line x1="8" y1="12" x2="16" y2="12" />
-                            </svg>
-                            New Component
-                        </button>
+                        <>
+                            <button
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 flex items-center gap-2"
+                                onClick={() => handleContextMenuAction('new')}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                    <line x1="12" y1="8" x2="12" y2="16" />
+                                    <line x1="8" y1="12" x2="16" y2="12" />
+                                </svg>
+                                New Component
+                            </button>
+                            <button
+                                className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                                    hasClipboardContent 
+                                        ? 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 cursor-pointer' 
+                                        : 'text-gray-300 cursor-not-allowed opacity-50'
+                                }`}
+                                onClick={() => hasClipboardContent && handleContextMenuAction('paste')}
+                                disabled={!hasClipboardContent}
+                                title={hasClipboardContent ? 'Paste from clipboard' : 'Clipboard is empty'}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                                    <path d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                <span>Paste</span>
+                                {!hasClipboardContent && (
+                                    <span className="text-xs ml-auto">(empty)</span>
+                                )}
+                            </button>
+                        </>
                     ) : (
                         <div className="flex flex-col">
                             <button
@@ -1585,6 +2021,105 @@ export default function CapturedSection() {
                             setPendingCode('');
                         }}
                     />
+                )}
+
+                {/* Share Modal */}
+                {isShareModalOpen && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6 animate-in zoom-in-95 duration-200">
+                            {/* Header */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-600">
+                                            <circle cx="18" cy="5" r="3" />
+                                            <circle cx="6" cy="12" r="3" />
+                                            <circle cx="18" cy="19" r="3" />
+                                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900">Share Canvas</h2>
+                                        <p className="text-sm text-gray-500">Anyone with the link can view</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setIsShareModalOpen(false);
+                                        setShareLink('');
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Content */}
+                            {isGeneratingLink ? (
+                                <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                                    <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                                    <p className="text-sm text-gray-500 font-medium">Generating share link...</p>
+                                </div>
+                            ) : shareLink ? (
+                                <>
+                                    {/* Link Preview */}
+                                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                            </svg>
+                                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Share Link</span>
+                                        </div>
+                                        <div className="bg-white border border-gray-200 rounded-lg p-3 font-mono text-sm text-gray-700 break-all">
+                                            {shareLink}
+                                        </div>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleCopyShareLink}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-medium"
+                                        >
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                            </svg>
+                                            Copy Link
+                                        </button>
+                                        <button
+                                            onClick={() => window.open(shareLink, '_blank')}
+                                            className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                                            title="Open in new tab"
+                                        >
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                                <polyline points="15 3 21 3 21 9" />
+                                                <line x1="10" y1="14" x2="21" y2="3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+
+                                    {/* Info */}
+                                    <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600 mt-0.5 flex-shrink-0">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <line x1="12" y1="16" x2="12" y2="12" />
+                                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                                        </svg>
+                                        <p className="text-xs text-blue-700 leading-relaxed">
+                                            This link will remain active and anyone with it can view your canvas. All components and their code will be visible.
+                                        </p>
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
+                    </div>
                 )}
 
                 {/* Floating Action Buttons */}

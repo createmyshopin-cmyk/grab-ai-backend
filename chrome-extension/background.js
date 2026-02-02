@@ -16,17 +16,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleScreenshotCapture(message.elementInfo, sender.tab.id, sendResponse);
     return true; // Keep channel open for async response
   }
-  else if (message.action === 'copyToClipboard') {
-    // Handle clipboard copy request (fallback method)
-    handleClipboardCopy(message.text, sender.tab.id, sendResponse);
-    return true; // Keep channel open for async response
-  }
   return true;
 });
 
 /**
  * Process captured element - React code is ALREADY CONVERTED!
- * Storage only - clipboard handled by content.js
+ * No AI, no server needed - just copy to clipboard
  */
 async function handleElementCapture(capturedData, tabId) {
   console.log('✅ Element captured with instant React conversion!');
@@ -46,20 +41,35 @@ async function handleElementCapture(capturedData, tabId) {
       await saveCapture(capturedData, reactCode);
       console.log('✅ Saved to Chrome storage');
     } catch (storageErr) {
-      console.warn('⚠️ Storage failed (quota), clipboard is primary method:', storageErr.message);
-      // Continue anyway - content.js already copied to clipboard
+      console.warn('⚠️ Storage failed (quota), continuing with clipboard:', storageErr.message);
+      // Continue anyway - clipboard is the main transfer method
     }
     
-    // NOTE: Clipboard copy is now handled in content.js (more reliable)
-    // No need to copy here since content.js already did it
+    // Try to copy React code to clipboard
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: (code) => {
+          navigator.clipboard.writeText(code).then(() => {
+            console.log('✅ React code copied to clipboard!');
+          }).catch(err => {
+            console.log('Copy failed:', err);
+          });
+        },
+        args: [reactCode]
+      });
+      console.log('✅ React code copied to clipboard');
+    } catch (injectError) {
+      console.log('⚠️ Auto-copy not available, click extension to copy');
+    }
     
     // Notify user
     try {
       chrome.notifications.create({
         type: 'basic',
         iconUrl: 'icons/icon-48.png',
-        title: '✅ React Code Copied!',
-        message: 'Paste directly on canvas (Ctrl+V)',
+        title: '✅ React Code Ready!',
+        message: 'Paste directly on canvas (Ctrl+V) or click extension to copy',
         priority: 2
       });
     } catch (notifError) {
@@ -82,39 +92,6 @@ async function handleElementCapture(capturedData, tabId) {
     } catch (notifError) {
       console.error('Could not show error notification');
     }
-  }
-}
-
-/**
- * Copy text to clipboard (fallback method via service worker)
- */
-async function handleClipboardCopy(text, tabId, sendResponse) {
-  try {
-    console.log('📋 Attempting clipboard copy via service worker...');
-    
-    // Method 1: Use chrome.scripting to execute clipboard write
-    await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: (textToCopy) => {
-        return navigator.clipboard.writeText(textToCopy)
-          .then(() => {
-            console.log('✅ Clipboard write successful');
-            return { success: true };
-          })
-          .catch((err) => {
-            console.error('❌ Clipboard write failed:', err);
-            return { success: false, error: err.message };
-          });
-      },
-      args: [text]
-    });
-    
-    console.log('✅ Clipboard copy successful');
-    sendResponse({ success: true });
-    
-  } catch (error) {
-    console.error('❌ Clipboard copy failed:', error);
-    sendResponse({ success: false, error: error.message });
   }
 }
 

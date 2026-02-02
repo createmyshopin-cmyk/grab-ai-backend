@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
+import { convertToShopifyLiquid } from '@/lib/shopifyConverter';
 
 export async function POST(req: NextRequest) {
-    try {
-        const { code, componentName } = await req.json();
+  try {
+    const { code, componentName, useAi = false } = await req.json();
 
-        if (!code) {
-            return NextResponse.json({ error: 'Component code is required' }, { status: 400 });
-        }
+    if (!code) {
+      return NextResponse.json({ error: 'Component code is required' }, { status: 400 });
+    }
 
-        if (!process.env.GOOGLE_GEMINI_API_KEY) {
-            return NextResponse.json({ error: 'Google Gemini API key not configured' }, { status: 500 });
-        }
+    // --- DETEERMINISTIC CONVERSION (NO AI) ---
+    if (!useAi) {
+      console.log('⚡ Converting to Shopify Liquid (Deterministic, No AI)...');
+      const result = convertToShopifyLiquid(code, componentName || 'CustomSection');
 
-        const prompt = `You are an elite Shopify Theme Developer with 15+ years of experience. Convert the following React component into a production-ready Shopify Liquid Section.
+      return NextResponse.json({
+        liquidCode: result.liquid,
+        filename: result.filename,
+        method: 'rule-based'
+      });
+    }
+
+    // --- AI CONVERSION (OPENROUTER) ---
+    console.log('🤖 Converting to Shopify Liquid using AI (OpenRouter)...');
+
+    if (!process.env.OPENROUTER_API_KEY) {
+      return NextResponse.json({ error: 'OpenRouter API key not configured' }, { status: 500 });
+    }
+
+    const prompt = `You are an elite Shopify Theme Developer with 15+ years of experience. Convert the following React component into a production-ready Shopify Liquid Section.
 
 ### CRITICAL REQUIREMENTS
 
@@ -89,56 +102,54 @@ ${code}
 ### OUTPUT (Liquid Section Only):
 `;
 
-        // Try Gemini 3.0 Pro Preview first, fallback to Gemini 2.5 Flash
-        let model;
-        let liquidCode = '';
-        let modelUsed = '';
-        
-        try {
-            // Primary: Gemini 3.0 Pro Preview (most advanced)
-            model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            liquidCode = response.text();
-            modelUsed = 'Gemini 3.0 Pro Preview (gemini-3-pro-preview)';
-            console.log(`✅ Using: ${modelUsed}`);
-        } catch (error: any) {
-            console.log(`⚠️ Gemini 3.0 Pro Preview failed: ${error.message}`);
-            console.log('⏳ Trying fallback: Gemini 2.5 Flash...');
-            
-            try {
-                // Fallback: Gemini 2.5 Flash (stable, fast)
-                model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-                const result = await model.generateContent(prompt);
-                const response = await result.response;
-                liquidCode = response.text();
-                modelUsed = 'Gemini 2.5 Flash (gemini-2.5-flash)';
-                console.log(`✅ Using fallback: ${modelUsed}`);
-            } catch (fallbackError: any) {
-                throw new Error(`Both Gemini models failed. Primary: ${error.message} | Fallback: ${fallbackError.message}`);
-            }
-        }
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "http://localhost:9003", // Site URL
+        "X-Title": "Grab AI Canvas", // Site title
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        "model": "deepseek/deepseek-r1-0528:free",
+        "messages": [
+          {
+            "role": "user",
+            "content": prompt
+          }
+        ]
+      })
+    });
 
-        // Clean up any markdown artifacts
-        const cleanedCode = liquidCode
-            .replace(/```liquid/g, '')
-            .replace(/```/g, '')
-            .trim();
-
-        // Generate filename
-        const filename = componentName 
-            ? `${componentName.toLowerCase().replace(/\s+/g, '-')}.liquid`
-            : 'shopify-section.liquid';
-
-        return NextResponse.json({ 
-            liquidCode: cleanedCode,
-            filename 
-        });
-    } catch (error: any) {
-        console.error('Shopify Export API Error:', error);
-        return NextResponse.json(
-            { error: error.message || 'Failed to convert to Shopify Liquid' },
-            { status: 500 }
-        );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
     }
+
+    const data = await response.json();
+    const liquidCode = data.choices?.[0]?.message?.content || '';
+
+    // Clean up any markdown artifacts
+    const cleanedCode = liquidCode
+      .replace(/```liquid/g, '')
+      .replace(/```/g, '')
+      .trim();
+
+    // Generate filename
+    const filename = componentName
+      ? `${componentName.toLowerCase().replace(/\s+/g, '-')}.liquid`
+      : 'shopify-section.liquid';
+
+    return NextResponse.json({
+      liquidCode: cleanedCode,
+      filename,
+      method: 'ai'
+    });
+  } catch (error: any) {
+    console.error('Shopify Export API Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to convert to Shopify Liquid' },
+      { status: 500 }
+    );
+  }
 }

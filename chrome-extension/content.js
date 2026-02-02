@@ -975,6 +975,166 @@ function detectFontsInElement(element) {
 }
 
 /**
+ * Detect all colors used in element and its children
+ */
+function detectColorsInElement(element) {
+  const colors = {
+    text: new Set(),
+    background: new Set(),
+    border: new Set(),
+    fill: new Set(),
+    other: new Set()
+  };
+  
+  // Check element and all children
+  const allElements = [element, ...element.querySelectorAll('*')];
+  
+  allElements.forEach(el => {
+    try {
+      const computed = window.getComputedStyle(el);
+      
+      // Text color
+      const textColor = computed.color;
+      if (textColor && !isTransparentColor(textColor)) {
+        colors.text.add(normalizeColor(textColor));
+      }
+      
+      // Background color
+      const bgColor = computed.backgroundColor;
+      if (bgColor && !isTransparentColor(bgColor)) {
+        colors.background.add(normalizeColor(bgColor));
+      }
+      
+      // Border colors
+      const borderColor = computed.borderColor;
+      if (borderColor && !isTransparentColor(borderColor)) {
+        colors.border.add(normalizeColor(borderColor));
+      }
+      
+      const borderTopColor = computed.borderTopColor;
+      if (borderTopColor && borderTopColor !== borderColor && !isTransparentColor(borderTopColor)) {
+        colors.border.add(normalizeColor(borderTopColor));
+      }
+      
+      // SVG fill and stroke
+      if (el.namespaceURI === 'http://www.w3.org/2000/svg') {
+        const fill = computed.fill;
+        if (fill && fill !== 'none' && !isTransparentColor(fill)) {
+          colors.fill.add(normalizeColor(fill));
+        }
+        
+        const stroke = computed.stroke;
+        if (stroke && stroke !== 'none' && !isTransparentColor(stroke)) {
+          colors.fill.add(normalizeColor(stroke));
+        }
+      }
+      
+      // Box shadow colors
+      const boxShadow = computed.boxShadow;
+      if (boxShadow && boxShadow !== 'none') {
+        const shadowColors = extractColorsFromString(boxShadow);
+        shadowColors.forEach(c => colors.other.add(c));
+      }
+      
+      // Text shadow colors
+      const textShadow = computed.textShadow;
+      if (textShadow && textShadow !== 'none') {
+        const shadowColors = extractColorsFromString(textShadow);
+        shadowColors.forEach(c => colors.other.add(c));
+      }
+      
+    } catch (e) {
+      // Skip if getComputedStyle fails
+    }
+  });
+  
+  return {
+    text: Array.from(colors.text),
+    background: Array.from(colors.background),
+    border: Array.from(colors.border),
+    fill: Array.from(colors.fill),
+    other: Array.from(colors.other),
+    all: Array.from(new Set([
+      ...colors.text,
+      ...colors.background,
+      ...colors.border,
+      ...colors.fill,
+      ...colors.other
+    ]))
+  };
+}
+
+/**
+ * Check if a color is transparent
+ */
+function isTransparentColor(color) {
+  if (!color) return true;
+  if (color === 'transparent') return true;
+  if (color === 'rgba(0, 0, 0, 0)') return true;
+  if (/rgba?\([^)]*,\s*0\)/.test(color)) return true;
+  return false;
+}
+
+/**
+ * Normalize color to consistent format (convert to hex if possible)
+ */
+function normalizeColor(color) {
+  // Already hex
+  if (/^#[0-9A-F]{6}$/i.test(color)) {
+    return color.toUpperCase();
+  }
+  
+  // RGB to hex
+  const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (rgbMatch) {
+    const r = parseInt(rgbMatch[1]);
+    const g = parseInt(rgbMatch[2]);
+    const b = parseInt(rgbMatch[3]);
+    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+  }
+  
+  // RGBA - keep as is (has transparency)
+  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+  if (rgbaMatch) {
+    const a = parseFloat(rgbaMatch[4]);
+    if (a === 1) {
+      // Fully opaque, convert to hex
+      const r = parseInt(rgbaMatch[1]);
+      const g = parseInt(rgbaMatch[2]);
+      const b = parseInt(rgbaMatch[3]);
+      return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+    }
+    return color; // Keep rgba for transparency
+  }
+  
+  return color;
+}
+
+/**
+ * Extract colors from CSS string (for shadows, gradients, etc.)
+ */
+function extractColorsFromString(str) {
+  const colors = [];
+  
+  // Match rgb/rgba colors
+  const rgbaMatches = str.matchAll(/rgba?\([^)]+\)/g);
+  for (const match of rgbaMatches) {
+    const color = normalizeColor(match[0]);
+    if (!isTransparentColor(color)) {
+      colors.push(color);
+    }
+  }
+  
+  // Match hex colors
+  const hexMatches = str.matchAll(/#[0-9A-F]{6}/gi);
+  for (const match of hexMatches) {
+    colors.push(match[0].toUpperCase());
+  }
+  
+  return colors;
+}
+
+/**
  * Display preview modal with cropped screenshot
  */
 async function displayPreviewModal(element, screenshotDataUrl) {
@@ -991,6 +1151,10 @@ async function displayPreviewModal(element, screenshotDataUrl) {
   // Detect fonts used in the element
   const fontsInfo = detectFontsInElement(element);
   console.log('🔤 Fonts detected for preview:', fontsInfo);
+  
+  // Detect colors used in the element
+  const colorsInfo = detectColorsInElement(element);
+  console.log('🎨 Colors detected for preview:', colorsInfo);
   
   // Create modal
   previewModal = document.createElement('div');
@@ -1113,6 +1277,91 @@ async function displayPreviewModal(element, screenshotDataUrl) {
         <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #BFDBFE; font-size: 11px; color: #6B7280; display: flex; align-items: center; gap: 4px;">
           <span>✓</span>
           <span>These fonts will be included in the capture</span>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Colors Info -->
+      ${colorsInfo.all.length > 0 ? `
+      <div style="background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: left;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <span style="font-size: 20px;">🎨</span>
+          <h3 style="margin: 0; font-size: 15px; font-weight: 700; color: #92400E;">Colors Detected</h3>
+        </div>
+        
+        ${colorsInfo.text.length > 0 ? `
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px; font-weight: 600;">TEXT COLORS:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${colorsInfo.text.map(color => `
+              <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: white; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px;">
+                <div style="width: 20px; height: 20px; border-radius: 4px; background: ${color}; border: 1px solid #D1D5DB; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                <span style="font-family: monospace; font-weight: 500; color: #92400E;">${color}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        ${colorsInfo.background.length > 0 ? `
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px; font-weight: 600;">BACKGROUND COLORS:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${colorsInfo.background.map(color => `
+              <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: white; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px;">
+                <div style="width: 20px; height: 20px; border-radius: 4px; background: ${color}; border: 1px solid #D1D5DB; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                <span style="font-family: monospace; font-weight: 500; color: #92400E;">${color}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        ${colorsInfo.border.length > 0 ? `
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px; font-weight: 600;">BORDER COLORS:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${colorsInfo.border.map(color => `
+              <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: white; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px;">
+                <div style="width: 20px; height: 20px; border-radius: 4px; background: ${color}; border: 1px solid #D1D5DB; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                <span style="font-family: monospace; font-weight: 500; color: #92400E;">${color}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        ${colorsInfo.fill.length > 0 ? `
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px; font-weight: 600;">SVG/ICON COLORS:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${colorsInfo.fill.map(color => `
+              <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: white; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px;">
+                <div style="width: 20px; height: 20px; border-radius: 4px; background: ${color}; border: 1px solid #D1D5DB; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                <span style="font-family: monospace; font-weight: 500; color: #92400E;">${color}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        ${colorsInfo.other.length > 0 ? `
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px; font-weight: 600;">OTHER COLORS (SHADOWS, ETC.):</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${colorsInfo.other.map(color => `
+              <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: white; border: 1px solid #FDE68A; border-radius: 6px; font-size: 12px;">
+                <div style="width: 20px; height: 20px; border-radius: 4px; background: ${color}; border: 1px solid #D1D5DB; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                <span style="font-family: monospace; font-weight: 500; color: #92400E;">${color}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #FDE68A; font-size: 11px; color: #6B7280; display: flex; align-items: center; gap: 4px;">
+          <span>✓</span>
+          <span>Total: ${colorsInfo.all.length} unique color${colorsInfo.all.length !== 1 ? 's' : ''} captured</span>
         </div>
       </div>
       ` : ''}
@@ -1605,8 +1854,8 @@ async function captureElement(element) {
     // Step 3: Clone element with ALL computed styles inline
     const htmlWithAllStyles = captureWithAllStyles(element);
     
-    // Step 4: Convert to clean React JSX with fonts and optional Shopify data
-    const reactCode = convertHtmlToReact(htmlWithAllStyles, element.tagName.toLowerCase(), extractedCSS, shopifyData, webFonts);
+    // Step 4: Convert to clean React JSX with fonts, Shopify data, and Alpine.js support
+    const reactCode = convertHtmlToReact(htmlWithAllStyles, element.tagName.toLowerCase(), extractedCSS, shopifyData, webFonts, dependencies);
     
     console.log('✅ React JSX conversion complete!');
     console.log('   Code length:', reactCode.length);
@@ -1615,35 +1864,7 @@ async function captureElement(element) {
       console.log('   Shopify data included');
     }
     
-    // Step 5: Copy to clipboard DIRECTLY (more reliable than background)
-    try {
-      await navigator.clipboard.writeText(reactCode);
-      console.log('✅ React code copied to clipboard!', reactCode.length, 'characters');
-      
-      const message = shopifyData ? 'Shopify section captured!' : 'React JSX Ready!';
-      const depsMsg = dependencies.cdnLibraries.length > 0 
-        ? ` (${dependencies.cdnLibraries.length} lib${dependencies.cdnLibraries.length > 1 ? 's' : ''} detected)` 
-        : '';
-      showNotification('✅ ' + message, 'Copied to clipboard - paste anywhere' + depsMsg);
-      
-    } catch (clipboardError) {
-      console.warn('⚠️ Direct clipboard copy failed, using background fallback:', clipboardError);
-      
-      // Fallback: Try background script method
-      try {
-        await chrome.runtime.sendMessage({
-          action: 'copyToClipboard',
-          text: reactCode
-        });
-        
-        showNotification('✅ Copied!', 'Paste on canvas (Ctrl+V)');
-      } catch (bgError) {
-        console.error('❌ Both clipboard methods failed:', bgError);
-        showNotification('Copy Failed', 'Open extension popup to manually copy');
-      }
-    }
-    
-    // Step 6: Send to background for storage (optional, non-blocking)
+    // Step 5: Send to background for clipboard with ALL dependencies
     chrome.runtime.sendMessage({
       action: 'elementCaptured',
       data: {
@@ -1664,11 +1885,18 @@ async function captureElement(element) {
       }
     }, (response) => {
       if (chrome.runtime.lastError) {
-        console.log('Storage skipped (extension context), but clipboard succeeded');
+        console.error('Failed to send to background:', chrome.runtime.lastError);
+        showNotification('Capture Failed', 'Could not communicate with extension');
       } else {
-        console.log('Successfully saved to storage');
+        console.log('Successfully sent to background');
       }
     });
+    
+    const message = shopifyData ? 'Shopify section captured!' : 'React JSX Ready!';
+    const depsMsg = dependencies.cdnLibraries.length > 0 
+      ? ` (${dependencies.cdnLibraries.length} lib${dependencies.cdnLibraries.length > 1 ? 's' : ''} detected)` 
+      : '';
+    showNotification('✅ ' + message, 'Copied to clipboard - paste anywhere' + depsMsg);
     
   } catch (error) {
     console.error('Capture error:', error);
@@ -1698,7 +1926,7 @@ function detectShopify(element) {
   };
   
   // Find all Shopify sections in/around the captured element
-  let sections = element.querySelectorAll('[data-section-id], [data-section-type]');
+  const sections = element.querySelectorAll('[data-section-id], [data-section-type]');
   if (sections.length === 0) {
     // Check if element itself is a section
     const parentSection = element.closest('[data-section-id], [data-section-type]');
@@ -2079,71 +2307,123 @@ function extractEssentialStyles(element, computed) {
   const hasTailwind = /\b(sm|md|lg|xl|2xl|max-|min-)/.test(classList);
   const hasResponsiveClasses = /\b(container|flex|grid|col-|row-)/.test(classList);
   
-  // For elements with Tailwind/responsive classes, only capture visual styles
-  // Skip layout properties to preserve responsive behavior
-  const visualOnlyProps = [
-    // Typography (visual) - ENHANCED
-    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight',
-    'textAlign', 'textTransform', 'letterSpacing', 'textDecoration',
-    'textShadow', 'textIndent', 'textOverflow', 'whiteSpace', 'wordSpacing',
-    'fontVariant', 'fontStretch', 'fontSizeAdjust', 'fontKerning',
-    'color',
+  // CRITICAL FIX: Skip capturing display:none, visibility:hidden, opacity:0
+  // These hide elements and should not be captured
+  const displayValue = computed.display;
+  const visibilityValue = computed.visibility;
+  const opacityValue = computed.opacity;
+  
+  // If element is hidden, force it to be visible in capture
+  if (displayValue === 'none' || visibilityValue === 'hidden' || opacityValue === '0') {
+    console.warn('⚠️ Element was hidden (display:none, visibility:hidden, or opacity:0) - forcing visible for capture');
+    // Don't capture these hidden states
+  }
+  
+  // ULTRA MINIMAL: Only capture ESSENTIAL properties (NO BLOAT!)
+  // This prevents 50+ property bloat that breaks Babel/React
+  const essentialProps = [
+    // COLORS (most important!)
+    'color', 'backgroundColor',
+    'borderColor',  // Just the main one, not per-side!
+    'fill', 'stroke', // SVG only
     
-    // Spacing (CRITICAL for layout!) - ADDED
+    // TYPOGRAPHY (visual identity)
+    'fontFamily', 'fontSize', 'fontWeight', 'lineHeight',
+    'textAlign', 'textTransform', 'textDecoration',
+    
+    // SPACING (only if NON-ZERO - checked below)
     'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-    'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
     
-    // Background (visual)
-    'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition',
-    'backgroundRepeat',
+    // BACKGROUNDS
+    'backgroundImage', 'backgroundSize', 'backgroundPosition',
     
-    // Border (visual)
-    'border', 'borderRadius', 'borderWidth', 'borderStyle', 'borderColor',
-    'borderTop', 'borderRight', 'borderBottom', 'borderLeft',
+    // BORDERS
+    'border', 'borderRadius', 'borderWidth',
     
-    // Effects (visual)
-    'opacity', 'boxShadow', 'cursor', 'visibility',
-    
-    // Animation properties (CRITICAL for marquee, carousels, etc.)
-    'animation', 'animationName', 'animationDuration', 'animationTimingFunction',
-    'animationDelay', 'animationIterationCount', 'animationDirection', 'animationFillMode',
-    'animationPlayState', 'transform', 'transition'
+    // CRITICAL EFFECTS
+    'boxShadow', 'cursor'
   ];
   
-  // For non-responsive elements, capture more properties
-  const fullProps = isSVG 
-    ? ['fill', 'stroke', 'strokeWidth', 'opacity']
-    : [
-      ...visualOnlyProps,
-      // Only add layout for non-responsive elements
-      'display', 'position', 'top', 'right', 'bottom', 'left',
-      'width', 'height', 'maxWidth', 'maxHeight', 'minWidth', 'minHeight',
-      'zIndex', 'overflow', 'overflowX', 'overflowY',
-      'gap', 'rowGap', 'columnGap',
-      'transform', 'transition',
-      // Animation properties (CRITICAL for marquee, etc.)
-      'animation', 'animationName', 'animationDuration', 'animationTimingFunction',
-      'animationDelay', 'animationIterationCount', 'animationDirection', 'animationFillMode',
-      'animationPlayState'
-    ];
-  
-  // Choose which properties to capture based on element type
-  const propsToCapture = (hasTailwind || hasResponsiveClasses) ? visualOnlyProps : fullProps;
+  // For SVG, use minimal SVG props
+  const propsToCapture = isSVG 
+    ? ['fill', 'stroke', 'strokeWidth', 'opacity', 'color']
+    : essentialProps;
   
   const styleValues = [];
   
   for (const prop of propsToCapture) {
     const value = computed.getPropertyValue(kebabCase(prop));
     
-    // Don't skip 'none' for textDecoration (needed to remove underlines)
-    if (!value) continue;
-    if (value === 'auto' && prop !== 'margin' && prop !== 'marginTop' && prop !== 'marginRight' && prop !== 'marginBottom' && prop !== 'marginLeft') continue;
-    if (value === 'normal' && prop !== 'lineHeight') continue;
+    // CRITICAL: Skip hidden states - force elements to be visible
+    if (prop === 'display' && value === 'none') {
+      console.warn('🚫 Skipping display:none - element will be visible in capture');
+      continue;
+    }
+    if (prop === 'visibility' && value === 'hidden') {
+      console.warn('🚫 Skipping visibility:hidden - element will be visible in capture');
+      continue;
+    }
+    if (prop === 'opacity' && (value === '0' || parseFloat(value) === 0)) {
+      console.warn('🚫 Skipping opacity:0 - element will be visible in capture');
+      continue;
+    }
     
-    // Skip default values
-    if (value === 'rgb(0, 0, 0)' && prop === 'color') continue;
-    if (value === 'rgba(0, 0, 0, 0)' && prop === 'backgroundColor') continue;
-    if (value === '0px' && !['top', 'left', 'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft'].includes(prop)) continue;
+    // AGGRESSIVE FILTERING: Skip default/bloat values
+    if (!value) continue;
+    if (value === 'auto') continue;
+    if (value === 'normal' && prop !== 'lineHeight') continue;
+    if (value === 'none' && prop !== 'textDecoration' && prop !== 'border') continue;
+    
+    // Skip default colors
+    if (value === 'rgba(0, 0, 0, 0)') continue;
+    if (value === 'transparent' && prop === 'backgroundColor') continue;
+    
+    // Skip gray border colors (usually default, no visible border)
+    if (prop.includes('border') && prop.includes('Color') && value === 'rgb(109, 110, 113)') continue;
+    
+    // Skip SVG properties on non-SVG elements
+    if (!isSVG && (prop === 'fill' || prop === 'stroke')) continue;
+    
+    // Skip default opacity
+    if (prop === 'opacity' && (value === '1' || parseFloat(value) === 1)) continue;
+    
+    // Skip default spacing (0px) - we don't need "padding: 0px"!
+    if (value === '0px') continue;
+    
+    // Skip default layout values that bloat the code
+    if (value === 'block' && prop === 'display') continue;
+    if (value === 'inline' && prop === 'display') continue;
+    if (value === 'static' && prop === 'position') continue;
+    if (value === 'visible' && (prop === 'visibility' || prop === 'overflow' || prop === 'overflowX' || prop === 'overflowY')) continue;
+    if (value === 'border-box' && (prop === 'backgroundClip' || prop === 'backgroundOrigin')) continue;
+    if (value === 'repeat' && prop === 'backgroundRepeat') continue;
+    if (value === '0% 0%' && prop === 'backgroundPosition') continue;
+    
+    // Skip default border values
+    if (value.includes('0px none') || value === '0px') continue;
+    
+    // Skip default animation/transform values (major bloat!)
+    if (prop.includes('animation') && (value === 'none' || value === '0s' || value === 'ease' || value === '1' || value === 'running')) continue;
+    if (prop === 'transform' && value === 'none') continue;
+    if (prop === 'transition' && (value === 'all' || value === 'none')) continue;
+    
+    // Skip default text values
+    if (prop === 'textDecoration' && value === 'none solid rgb') continue;
+    if (prop === 'textShadow' && value === 'none') continue;
+    if (prop === 'textOverflow' && value === 'clip') continue;
+    if (prop === 'textTransform' && value === 'none') continue;
+    
+    // Skip default font values
+    if (prop === 'fontStretch' && value === '100%') continue;
+    if (prop === 'fontSizeAdjust' && value === 'none') continue;
+    
+    // Skip box-shadow: none, filter: none
+    if ((prop === 'boxShadow' || prop === 'filter' || prop === 'backdropFilter') && value === 'none') continue;
+    
+    // Log color captures for debugging
+    if (prop.toLowerCase().includes('color') || prop === 'fill' || prop === 'stroke') {
+      console.log(`🎨 Captured ${prop}: ${value}`);
+    }
     
     // Clean and normalize value
     let cleanValue = value;
@@ -2156,12 +2436,23 @@ function extractEssentialStyles(element, computed) {
     // Skip invalid values
     if (/rgb\(\s*,\s*,\s*\)/.test(cleanValue)) continue;
     
+    // Skip extremely long values (likely computed bloat)
+    if (cleanValue.length > 200) {
+      console.warn(`⚠️ Skipping ${prop} - value too long (${cleanValue.length} chars)`);
+      continue;
+    }
+    
     styleValues.push(`${kebabCase(prop)}: ${cleanValue}`);
   }
   
   // Force remove underline from links if textDecoration wasn't captured
   if (tagName === 'a' && !styleValues.some(s => s.includes('text-decoration'))) {
     styleValues.push('text-decoration: none');
+  }
+  
+  // Log how many properties were captured (should be MINIMAL!)
+  if (styleValues.length > 0) {
+    console.log(`✅ Captured ${styleValues.length} essential properties for <${tagName}> (was: ${propsToCapture.length} possible)`);
   }
   
   return styleValues.length > 0 ? styleValues.join('; ') : '';
@@ -2194,11 +2485,15 @@ function cleanInvalidAttributes(element) {
         continue;
       }
       
-      // Remove framework-specific attributes
-      if (/^(ap|x|v|ng|data-aos|reveal)-/.test(name)) {
+      // Remove framework-specific attributes (EXCEPT Alpine.js x- attributes)
+      // Keep Alpine.js attributes: x-data, x-show, x-bind, @click, etc.
+      if (/^(ap|v|ng|data-aos|reveal)-/.test(name)) {
         attrsToRemove.push(name);
         continue;
       }
+      
+      // DON'T remove Alpine.js attributes (x- and @)
+      // These are needed for Alpine.js functionality
       
       // Remove empty attributes (except boolean ones)
       const booleanAttrs = ['checked', 'disabled', 'selected', 'required', 'multiple', 'hidden', 'readonly', 'autofocus'];
@@ -2212,13 +2507,17 @@ function cleanInvalidAttributes(element) {
 }
 
 /**
- * PRODUCTION: Convert HTML to React JSX with FONTS
+ * PRODUCTION: Convert HTML to React JSX with FONTS and Alpine.js support
  */
-function convertHtmlToReact(html, tagName, extractedCSS = '', shopifyData = null, webFonts = null) {
+function convertHtmlToReact(html, tagName, extractedCSS = '', shopifyData = null, webFonts = null, dependencies = null) {
   const componentName = 'Captured' + tagName.charAt(0).toUpperCase() + tagName.slice(1) + 'Section';
   
-  // Convert HTML to JSX
-  const jsx = htmlToJSX(html);
+  // Check if Alpine.js is detected
+  const hasAlpine = dependencies && dependencies.frameworks.includes('Alpine.js');
+  const alpineAttributes = hasAlpine ? detectAlpineAttributes(html) : [];
+  
+  // Convert HTML to JSX (preserve Alpine.js attributes if detected)
+  const jsx = hasAlpine ? htmlToJSXWithAlpine(html) : htmlToJSX(html);
   
   // Format JSX
   const formattedJsx = formatJsx(jsx);
@@ -2256,8 +2555,68 @@ function convertHtmlToReact(html, tagName, extractedCSS = '', shopifyData = null
  */`;
   }
   
-  // Build React component
-  const reactCode = `import React from "react";
+  // Build Alpine.js comment if detected
+  let alpineComment = '';
+  if (hasAlpine) {
+    alpineComment = `\n\n/*
+ * ⚡ ALPINE.JS DETECTED
+ * 
+ * This component uses Alpine.js for interactivity.
+ * Alpine.js attributes (x-data, @click, etc.) are preserved.
+ * 
+ * To use on canvas:
+ * 1. Include Alpine.js CDN: <script src="https://unpkg.com/alpinejs@3/dist/cdn.min.js" defer></script>
+ * 2. Alpine.js will automatically initialize
+ * 3. All x-data, @click, :bind attributes will work
+ * 
+ * Detected Alpine.js attributes: ${alpineAttributes.length} attributes
+ */`;
+  }
+  
+  // Build React component with optional Alpine.js support
+  let reactCode;
+  
+  if (hasAlpine) {
+    // Alpine.js + React hybrid component
+    reactCode = `import React, { useEffect } from "react";
+
+export default function ${componentName}() {
+  useEffect(() => {
+    // Load Alpine.js dynamically if not already loaded
+    if (typeof window.Alpine === 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/alpinejs@3/dist/cdn.min.js';
+      script.defer = true;
+      document.head.appendChild(script);
+      console.log('🎯 Alpine.js loaded for ${componentName}');
+    }
+  }, []);
+
+  return (
+    <>
+${formattedJsx}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: \`
+html {
+  box-sizing: border-box;
+}
+body {
+  margin: 0px;
+}
+* {
+  box-sizing: border-box;
+}
+${escapedCSS}
+\`,
+        }}
+      />
+    </>
+  );
+}${alpineComment}${shopifyComment}`;
+  } else {
+    // Standard React component
+    reactCode = `import React from "react";
 
 export default function ${componentName}() {
   return (
@@ -2282,8 +2641,82 @@ ${escapedCSS}
     </>
   );
 }${shopifyComment}`;
+  }
 
   return reactCode;
+}
+
+/**
+ * Detect Alpine.js attributes in HTML
+ */
+function detectAlpineAttributes(html) {
+  const alpineAttrs = [];
+  const attrPatterns = [
+    /x-data="([^"]*)"/g,
+    /x-show="([^"]*)"/g,
+    /x-bind:([^=]+)="([^"]*)"/g,
+    /x-on:([^=]+)="([^"]*)"/g,
+    /@([^=]+)="([^"]*)"/g,  // @click shorthand
+    /:([^=]+)="([^"]*)"/g,  // :href shorthand
+  ];
+  
+  attrPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      alpineAttrs.push(match[0]);
+    }
+  });
+  
+  return alpineAttrs;
+}
+
+/**
+ * Convert HTML to JSX (with Alpine.js preservation)
+ */
+function htmlToJSXWithAlpine(htmlString) {
+  let jsx = htmlString;
+  
+  // First, protect Alpine.js attributes by replacing them with placeholders
+  const alpineAttrMap = new Map();
+  let alpineCounter = 0;
+  
+  // Protect x-data
+  jsx = jsx.replace(/\sx-data="([^"]*)"/g, (match, content) => {
+    const placeholder = `__ALPINE_DATA_${alpineCounter++}__`;
+    alpineAttrMap.set(placeholder, ` x-data="${content}"`);
+    return ` ${placeholder}`;
+  });
+  
+  // Protect x-show, x-if, x-for, etc.
+  jsx = jsx.replace(/\s(x-[a-z]+)="([^"]*)"/g, (match, attr, content) => {
+    const placeholder = `__ALPINE_${attr.toUpperCase()}_${alpineCounter++}__`;
+    alpineAttrMap.set(placeholder, ` ${attr}="${content}"`);
+    return ` ${placeholder}`;
+  });
+  
+  // Protect @click, @submit, etc. (shorthand syntax)
+  jsx = jsx.replace(/\s@([a-z]+)="([^"]*)"/g, (match, event, content) => {
+    const placeholder = `__ALPINE_AT_${event.toUpperCase()}_${alpineCounter++}__`;
+    alpineAttrMap.set(placeholder, ` @${event}="${content}"`);
+    return ` ${placeholder}`;
+  });
+  
+  // Protect :bind shorthand
+  jsx = jsx.replace(/\s:([a-z-]+)="([^"]*)"/g, (match, attr, content) => {
+    const placeholder = `__ALPINE_BIND_${attr.toUpperCase().replace(/-/g, '_')}_${alpineCounter++}__`;
+    alpineAttrMap.set(placeholder, ` :${attr}="${content}"`);
+    return ` ${placeholder}`;
+  });
+  
+  // Now do normal JSX conversion
+  jsx = htmlToJSX(jsx);
+  
+  // Restore Alpine.js attributes
+  alpineAttrMap.forEach((original, placeholder) => {
+    jsx = jsx.replace(new RegExp(placeholder, 'g'), original);
+  });
+  
+  return jsx;
 }
 
 /**
@@ -2480,15 +2913,10 @@ function formatJsx(jsx) {
 /**
  * Show notification to user
  */
-function showNotification(title, message, options = {}) {
+function showNotification(title, message) {
   // Remove existing notification
   const existing = document.getElementById('grab-ai-notification');
   if (existing) existing.remove();
-  
-  const isError = title.toLowerCase().includes('fail') || title.toLowerCase().includes('error');
-  const isSuccess = title.includes('✅') || title.toLowerCase().includes('ready') || title.toLowerCase().includes('captured');
-  
-  const bgColor = isError ? '#EF4444' : isSuccess ? '#10B981' : '#4CAF50';
   
   const notification = document.createElement('div');
   notification.id = 'grab-ai-notification';
@@ -2496,93 +2924,40 @@ function showNotification(title, message, options = {}) {
     position: fixed;
     top: 20px;
     right: 20px;
-    background: ${bgColor};
+    background: #4CAF50;
     color: white;
     padding: 16px 24px;
-    border-radius: 12px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-    z-index: 10000000;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000000;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 14px;
-    max-width: 380px;
-    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    max-width: 320px;
+    animation: slideIn 0.3s ease;
   `;
   
   notification.innerHTML = `
-    <div style="display: flex; align-items: start; gap: 12px;">
-      <div style="flex: 1;">
-        <div style="font-weight: 700; margin-bottom: 6px; font-size: 15px;">${title}</div>
-        <div style="opacity: 0.95; line-height: 1.5;">${message}</div>
-        ${options.showCopyTip ? `
-          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; opacity: 0.9;">
-            💡 Tip: Open extension popup to manually copy
-          </div>
-        ` : ''}
-      </div>
-      <button id="grab-ai-close-notif" style="
-        background: rgba(255,255,255,0.2);
-        border: none;
-        color: white;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 16px;
-        line-height: 1;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.2s;
-      ">×</button>
-    </div>
+    <div style="font-weight: 600; margin-bottom: 4px;">${title}</div>
+    <div style="opacity: 0.9;">${message}</div>
   `;
   
   // Add animation
   const style = document.createElement('style');
   style.textContent = `
     @keyframes slideIn {
-      from { 
-        transform: translateX(400px) scale(0.9); 
-        opacity: 0; 
-      }
-      to { 
-        transform: translateX(0) scale(1); 
-        opacity: 1; 
-      }
-    }
-    @keyframes slideOut {
-      from { 
-        transform: translateX(0) scale(1); 
-        opacity: 1; 
-      }
-      to { 
-        transform: translateX(400px) scale(0.9); 
-        opacity: 0; 
-      }
-    }
-    #grab-ai-close-notif:hover {
-      background: rgba(255,255,255,0.3) !important;
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
   `;
   document.head.appendChild(style);
   
   document.body.appendChild(notification);
   
-  // Close button
-  document.getElementById('grab-ai-close-notif')?.addEventListener('click', () => {
-    notification.style.animation = 'slideOut 0.3s ease';
-    setTimeout(() => notification.remove(), 300);
-  });
-  
-  // Auto remove after duration
-  const duration = options.duration || (isError ? 6000 : 4000);
+  // Auto remove after 4 seconds
   setTimeout(() => {
-    if (notification.parentNode) {
-      notification.style.animation = 'slideOut 0.3s ease';
-      setTimeout(() => notification.remove(), 300);
-    }
-  }, duration);
+    notification.style.animation = 'slideIn 0.3s ease reverse';
+    setTimeout(() => notification.remove(), 300);
+  }, 4000);
 }
 
 console.log('✅ Grab AI Extension loaded - Ready to capture!');

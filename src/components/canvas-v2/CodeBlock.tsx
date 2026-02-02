@@ -206,92 +206,70 @@ function CodeBlock({
     const handleAutoFit = useCallback(() => {
         if (!contentRef.current) return;
 
-        const iframe = contentRef.current.querySelector('iframe') as HTMLIFrameElement;
+        const iframe = contentRef.current.querySelector('iframe');
         if (!iframe) return;
 
-        // Function to attempt measurement
-        const measureContent = () => {
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                if (!iframeDoc) {
-                    console.warn('Auto-fit: Cannot access iframe document');
-                    return;
-                }
+        try {
+            // Wait for iframe to load
+            iframe.addEventListener('load', () => {
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                    if (!iframeDoc) return;
 
-                // Get the actual rendered content size
-                const body = iframeDoc.body;
-                const html = iframeDoc.documentElement;
+                    // Get the actual rendered content size
+                    const body = iframeDoc.body;
+                    const html = iframeDoc.documentElement;
 
-                if (!body || !html) {
-                    console.warn('Auto-fit: Body or HTML not ready');
-                    return;
-                }
+                    const contentWidth = Math.max(
+                        body.scrollWidth,
+                        body.offsetWidth,
+                        html.clientWidth,
+                        html.scrollWidth,
+                        html.offsetWidth
+                    );
 
-                // Force reflow to get accurate measurements
-                body.offsetHeight;
+                    const contentHeight = Math.max(
+                        body.scrollHeight,
+                        body.offsetHeight,
+                        html.clientHeight,
+                        html.scrollHeight,
+                        html.offsetHeight
+                    );
 
-                const contentWidth = Math.max(
-                    body.scrollWidth,
-                    body.offsetWidth,
-                    html.clientWidth,
-                    html.scrollWidth,
-                    html.offsetWidth
-                );
+                    // Add some padding and enforce minimums
+                    const newWidth = Math.max(300, Math.min(3000, contentWidth + 20));
+                    const newHeight = Math.max(200, Math.min(2000, contentHeight + 20));
 
-                const contentHeight = Math.max(
-                    body.scrollHeight,
-                    body.offsetHeight,
-                    html.clientHeight,
-                    html.scrollHeight,
-                    html.offsetHeight
-                );
-
-                console.log('📐 Auto-fit measured:', { contentWidth, contentHeight });
-
-                // Add some padding and enforce limits
-                const newWidth = Math.max(400, Math.min(3500, contentWidth + 40));
-                const newHeight = Math.max(250, Math.min(2500, contentHeight + 40));
-
-                // Only update if significantly different (avoid tiny fluctuations)
-                if (Math.abs(newWidth - block.width) > 10 || Math.abs(newHeight - block.height) > 10) {
-                    console.log('✅ Auto-fit updating:', { newWidth, newHeight });
+                    // Update dimensions
                     onUpdate({
                         width: newWidth,
                         height: newHeight
                     });
-                } else {
-                    console.log('⏭️ Auto-fit skipped (no significant change)');
+                } catch (e) {
+                    console.warn('Auto-fit: Cannot access iframe content (CORS)', e);
                 }
-            } catch (e) {
-                console.warn('Auto-fit: Cannot access iframe content (CORS):', e);
-            }
-        };
-
-        // Try multiple times with increasing delays to catch content as it loads
-        setTimeout(measureContent, 100);
-        setTimeout(measureContent, 500);
-        setTimeout(measureContent, 1000);
-        setTimeout(measureContent, 2000);
-    }, [onUpdate, block.width, block.height]);
+            });
+        } catch (e) {
+            console.error('Auto-fit error:', e);
+        }
+    }, [onUpdate]);
 
     // Toggle auto-fit
     const toggleAutoFit = useCallback(() => {
         const newAutoFit = !isAutoFit;
         setIsAutoFit(newAutoFit);
         
-        // Always trigger auto-fit when clicking (whether turning on or off, it's useful to measure)
-        setTimeout(() => {
+        if (newAutoFit) {
             handleAutoFit();
-        }, 100);
+        }
     }, [isAutoFit, handleAutoFit]);
 
     // Monitor content changes and auto-fit when enabled
     React.useEffect(() => {
         if (isAutoFit) {
-            console.log('🔄 Auto-fit enabled, measuring content...');
             const timer = setTimeout(() => {
                 handleAutoFit();
-            }, 800); // Debounce to avoid excessive updates
+            }, 500); // Debounce to avoid excessive updates
 
             return () => clearTimeout(timer);
         }
@@ -533,22 +511,6 @@ function CodeBlock({
                 </div>
             )}
 
-            {/* ================= AUTO-FIT INDICATOR ================= */}
-            {isSelected && isAutoFit && !isResizing && (
-                <div
-                    className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-sm z-30 pointer-events-none flex items-center gap-1 animate-pulse"
-                    style={{
-                        transform: `scale(${inverseZoom}) translate(-50%, 0)`,
-                        transformOrigin: 'top center'
-                    }}
-                >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                    </svg>
-                    <span>Auto-fit: {Math.round(block.width)} × {Math.round(block.height)}</span>
-                </div>
-            )}
-
             {/* ================= MAIN CONTENT ================= */}
             <div className={`w-full h-full relative group ${!isInteractive ? 'pointer-events-none' : ''}`}>
 
@@ -628,18 +590,13 @@ function CodeBlock({
                         width={block.width}
                         height={block.height}
                         onContentResize={isAutoFit ? (width, height) => {
-                            console.log('📨 Received content size:', { width, height });
-                            
                             // Add padding and enforce limits
-                            const newWidth = Math.max(400, Math.min(3500, width + 40));
-                            const newHeight = Math.max(250, Math.min(2500, height + 40));
+                            const newWidth = Math.max(300, Math.min(3000, width + 40));
+                            const newHeight = Math.max(200, Math.min(2000, height + 40));
                             
                             // Only update if significantly different (avoid tiny fluctuations)
-                            if (Math.abs(newWidth - block.width) > 15 || Math.abs(newHeight - block.height) > 15) {
-                                console.log('✨ Updating dimensions:', { from: { w: block.width, h: block.height }, to: { w: newWidth, h: newHeight } });
+                            if (Math.abs(newWidth - block.width) > 10 || Math.abs(newHeight - block.height) > 10) {
                                 onUpdate({ width: newWidth, height: newHeight });
-                            } else {
-                                console.log('⏭️ Skipping update (change too small)');
                             }
                         } : undefined}
                     />
